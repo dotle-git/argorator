@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2025-08-26
+
 ### Fixed
 - Handle environment variable default and annotation default conflicts
   - Annotation defaults now properly override environment variable defaults
