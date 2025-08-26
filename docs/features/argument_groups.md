@@ -10,14 +10,100 @@ nav_order: 2
 
 Argorator supports organizing related command-line arguments into groups for better help organization and creating mutually exclusive argument sets. This feature enhances the user experience by logically grouping related options and enforcing constraints where only one option from a set should be used.
 
+Argorator offers two syntax styles for defining groups:
+
+1. **Natural Language Syntax** - Intuitive English-like declarations (recommended)
+2. **Individual Annotation Syntax** - Per-variable bracket annotations (legacy)
+
 ## Table of Contents
 
+- [Natural Language Syntax](#natural-language-syntax)
 - [Regular Argument Groups](#regular-argument-groups)
 - [Mutually Exclusive Groups](#mutually-exclusive-groups)
 - [Mixed Groups Example](#mixed-groups-example)
+- [Individual Annotation Syntax](#individual-annotation-syntax)
 - [Syntax Reference](#syntax-reference)
 - [Constraints and Validation](#constraints-and-validation)
 - [Integration with Other Features](#integration-with-other-features)
+
+## Natural Language Syntax
+
+The recommended way to define groups is using natural English-like declarations that are easy to read and write.
+
+### Basic Syntax
+
+```bash
+# group VAR1, VAR2, VAR3 as Group Name
+# one of VAR1, VAR2 as Group Name
+```
+
+**Regular Groups**: Use `group VAR1, VAR2 as GroupName` to organize related arguments together in help output.
+
+**Mutually Exclusive Groups**: Use `one of VAR1, VAR2 as GroupName` to ensure only one argument from the set can be specified.
+
+### Auto-Naming
+
+If you omit the `as GroupName` part, Argorator automatically generates group names:
+
+```bash
+# group SERVER_HOST, SERVER_PORT          # Auto-named "Group1"
+# group LOG_LEVEL, LOG_FILE               # Auto-named "Group2"  
+# one of VERBOSE, QUIET                   # Auto-named "ExclusiveGroup1"
+# one of JSON_OUTPUT, XML_OUTPUT          # Auto-named "ExclusiveGroup2"
+```
+
+### Complete Example
+
+```bash
+#!/bin/bash
+# group SERVER_HOST, SERVER_PORT, SERVER_TIMEOUT as Server Configuration
+# one of VERBOSE, QUIET as Output Mode
+# group LOG_LEVEL, LOG_FILE as Logging
+
+# SERVER_HOST (str): Server hostname to connect to
+# SERVER_PORT (int): Server port. Default: 8080
+# SERVER_TIMEOUT (int): Connection timeout. Default: 30
+# VERBOSE (bool) [alias: -v]: Enable verbose output
+# QUIET (bool) [alias: -q]: Enable quiet mode
+# LOG_LEVEL (choice[debug, info, warn, error]): Log level. Default: info
+# LOG_FILE (str): Path to log file
+# CONFIG_FILE (str): Configuration file path
+
+echo "Server: $SERVER_HOST:$SERVER_PORT (timeout: $SERVER_TIMEOUT)"
+echo "Logging: $LOG_LEVEL to $LOG_FILE"
+echo "Config: $CONFIG_FILE"
+echo "Verbose: $VERBOSE, Quiet: $QUIET"
+```
+
+This produces beautifully organized help output:
+
+```bash
+$ argorator server.sh --help
+usage: server.sh [-h] --config_file CONFIG_FILE --log_file LOG_FILE
+                 [--log_level {debug,info,warn,error}] [-q]
+                 --server_host SERVER_HOST [--server_port SERVER_PORT]
+                 [--server_timeout SERVER_TIMEOUT] [-v]
+
+options:
+  -h, --help            show this help message and exit
+  --config_file CONFIG_FILE
+                        Configuration file path
+  -q, --quiet           Enable quiet mode (default: false)
+  -v, --verbose         Enable verbose output (default: false)
+
+Server Configuration:
+  --server_host SERVER_HOST
+                        Server hostname to connect to
+  --server_port SERVER_PORT
+                        Server port (default: 8080)
+  --server_timeout SERVER_TIMEOUT
+                        Connection timeout (default: 30)
+
+Logging:
+  --log_file LOG_FILE   Path to log file
+  --log_level {debug,info,warn,error}
+                        Log level (default: info)
+```
 
 ## Regular Argument Groups
 
@@ -170,17 +256,15 @@ Database:
   --db_port DB_PORT     Database port (default: 5432)
 ```
 
-## Syntax Reference
+## Individual Annotation Syntax
+
+You can also define groups using per-variable bracket annotations. This is the legacy syntax that's still fully supported.
 
 ### Regular Groups
 
 ```bash
 # VARIABLE (type) [group: Group Name]: Description
 ```
-
-- `Group Name`: Any descriptive name for the group
-- Arguments with the same group name are displayed together
-- Group names are case-sensitive
 
 ### Mutually Exclusive Groups
 
@@ -189,19 +273,50 @@ Database:
 # VARIABLE (type) [exclusive: Group Name]: Description          # Shorthand
 ```
 
-- `Group Name`: Any descriptive name for the exclusive group
-- Only one argument from the group can be specified
-- Exclusive group names are case-sensitive
-- `exclusive` is a convenient shorthand for `exclusive_group`
+### Example
+
+```bash
+#!/bin/bash
+# VERBOSE (bool) [exclusive: Output Mode]: Enable verbose output  
+# QUIET (bool) [exclusive: Output Mode]: Enable quiet mode
+# SERVER_HOST (str) [group: Server]: Server hostname
+# SERVER_PORT (int) [group: Server]: Server port
+
+echo "Server: $SERVER_HOST:$SERVER_PORT"
+echo "Verbose: $VERBOSE, Quiet: $QUIET"
+```
+
+## Syntax Reference
+
+### Natural Language (Recommended)
+
+```bash
+# group VAR1, VAR2, VAR3 as Group Name         # Regular group
+# one of VAR1, VAR2 as Group Name              # Mutually exclusive group
+# group VAR1, VAR2                             # Auto-named regular group
+# one of VAR1, VAR2                            # Auto-named exclusive group
+```
+
+### Individual Annotations (Legacy)
+
+```bash
+# VARIABLE (type) [group: Group Name]: Description
+# VARIABLE (type) [exclusive_group: Group Name]: Description
+# VARIABLE (type) [exclusive: Group Name]: Description          # Shorthand
+```
 
 ### Complete Syntax
 
-Groups can be combined with all other annotation features:
+Both syntax styles can be combined with all other annotation features:
 
 ```bash
-# VARIABLE (type) [alias: -x] [group: Group Name]: Description. Default: value
-# VARIABLE (type) [alias: -x] [exclusive_group: Group Name]: Description. Default: value
-# VARIABLE (type) [alias: -x] [exclusive: Group Name]: Description. Default: value
+# Natural language groups (defined once)
+# group SERVER_HOST, SERVER_PORT as Server
+# one of VERBOSE, QUIET as Output
+
+# Individual annotations with full features
+# SERVER_HOST (str) [alias: -h]: Server hostname. Default: localhost
+# VERBOSE (bool) [alias: -v]: Enable verbose output
 ```
 
 ## Constraints and Validation

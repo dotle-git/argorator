@@ -17,7 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Argument groups and mutually exclusive groups support**
   - Group related arguments together for better help organization
   - Mutually exclusive groups ensure only one option from a set can be specified
-  - Google-style annotations support: `# VAR (type) [group: group_name]: Description`
+  - **Natural language syntax (recommended)**: `# group VAR1, VAR2 as GroupName` and `# one of VAR1, VAR2 as GroupName`
+  - Auto-naming: Groups without explicit names get auto-generated names (Group1, Group2, etc.)
+  - Individual annotation syntax: `# VAR (type) [group: group_name]: Description`
   - Exclusive groups syntax: `# VAR (type) [exclusive_group: group_name]: Description`
   - Shorthand syntax: `# VAR (type) [exclusive: group_name]: Description`
 - GitHub Pages documentation site with Jekyll
