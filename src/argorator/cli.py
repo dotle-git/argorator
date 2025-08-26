@@ -296,10 +296,14 @@ def inject_variable_assignments(script_text: str, assignments: Dict[str, str]) -
 	Assignments are added after the shebang if present; values are shell-quoted.
 	"""
 	lines = script_text.splitlines()
-	injection_lines = ["# argorator: injected variable definitions"]
+	injection_lines = []
 	for name in sorted(assignments.keys()):
 		value = assignments[name]
 		injection_lines.append(f"{name}={shlex.quote(value)}")
+	
+	if not injection_lines:
+		return script_text
+		
 	injection_block = "\n".join(injection_lines) + "\n"
 	if lines and lines[0].startswith("#!"):
 		return lines[0] + "\n" + injection_block + "\n".join(lines[1:]) + ("\n" if script_text.endswith("\n") else "")
@@ -334,7 +338,7 @@ def run_script_with_args(shell_cmd: List[str], script_text: str, positional_args
 def build_top_level_parser() -> argparse.ArgumentParser:
 	"""Build the top-level argparse parser with run/compile/export subcommands."""
 	parser = argparse.ArgumentParser(prog="argorator", description="Execute or compile shell scripts with CLI-exposed variables")
-	subparsers = parser.add_subparsers(dest="subcmd")
+	subparsers = parser.add_subparsers(dest="subcmd", required=True, help="Available commands")
 	# run
 	run_parser = subparsers.add_parser("run", help="Run script (default)")
 	run_parser.add_argument("script", help="Path to the shell script")
@@ -352,11 +356,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 	Top-level flow:
 	1) Decide whether a subcommand (run/compile/export) is given
-	2) Otherwise, treat invocation as implicit `run <script> ...`
-	3) Parse script to discover variables/positionals and build a dynamic parser
-	4) Execute command: run/compile/export
+	2) If no args or help requested, show subcommand help
+	3) Otherwise, treat invocation as implicit `run <script> ...`
+	4) Parse script to discover variables/positionals and build a dynamic parser
+	5) Execute command: run/compile/export
 	"""
 	argv = list(argv) if argv is not None else sys.argv[1:]
+	
+	# If no arguments or help requested, show subcommand help
+	if not argv or (argv and argv[0] in ["-h", "--help"]):
+		parser = build_top_level_parser()
+		parser.print_help()
+		return 0
+	
 	# If first token is a known subcommand, parse with subparsers; otherwise treat as implicit run
 	subcommands = {"run", "compile", "export"}
 	if argv and argv[0] in subcommands:

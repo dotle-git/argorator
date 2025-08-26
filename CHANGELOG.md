@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2024-12-26
+
+### Fixed
+- Help system now shows subcommands (`run`, `compile`, `export`) when no arguments are provided
+- Removed "#argorator: injected variable definitions" comment from compiled scripts for cleaner output
+
 ### Changed
 - Updated tagline to "stop writing argument parsing in bash"
 - Added before/after example showing bash argument parsing complexity vs Argorator
@@ -27,8 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Main landing page with full project overview
   - Organized documentation structure in docs/ folder
   - Google-style annotations feature documentation
-
-### Fixed
 - Tests badge in README now points to correct repository (dotle-git/argorator)
 - PyPI version badge switched to shields.io for better reliability and update frequency
   - Automated deployment via GitHub Actions
