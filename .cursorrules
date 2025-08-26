@@ -10,14 +10,14 @@ Argorator is a Python tool that transforms shell scripts into fully-featured com
 ├── src/argorator/          # Main source code
 │   ├── __init__.py
 │   ├── cli.py             # Core CLI implementation
-│   └── annotations.py     # Google-style annotation parser
+│   ├── annotations.py     # Google-style annotation parser
+│   └── models.py          # Pydantic models for annotations
 ├── tests/                  # Test files
 ├── examples/               # Example scripts demonstrating features
 ├── docs/                   # Documentation
 │   └── features/          # Feature-specific documentation
-├── README.md              # Project README
+├── README.md              # Project README with contributing section
 ├── CHANGELOG.md           # Version history (Keep a Changelog format)
-├── CONTRIBUTING.md        # Contribution guidelines
 ├── pyproject.toml         # Project configuration (contains version)
 └── LICENSE               # MIT License
 ```

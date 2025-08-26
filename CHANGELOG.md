@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Pydantic models for argument annotations providing better type safety and validation
+- `pydantic>=2.0` as a dependency
+
+### Changed
+- Argument annotations now use Pydantic `ArgumentAnnotation` model instead of plain dictionaries
+- Removed separate CONTRIBUTING.md file - contributing guidelines are now in the main README
+
+### Fixed
+- Alias validation now automatically prepends '-' if not present
+
 ## [0.3.0] - 2024-01-XX
 
 ### Added

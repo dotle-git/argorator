@@ -2,6 +2,7 @@ import pytest
 from pathlib import Path
 from argorator import cli
 from argorator.annotations import parse_arg_annotations
+from argorator.models import ArgumentAnnotation
 
 
 def test_parse_basic_google_annotation():
@@ -14,12 +15,12 @@ def test_parse_basic_google_annotation():
     annotations = parse_arg_annotations(script)
     
     assert "NAME" in annotations
-    assert annotations["NAME"]["help"] == "The user's name"
-    assert annotations["NAME"]["type"] == "str"
+    assert annotations["NAME"].help == "The user's name"
+    assert annotations["NAME"].type == "str"
     
     assert "AGE" in annotations
-    assert annotations["AGE"]["help"] == "The user's age"
-    assert annotations["AGE"]["type"] == "int"
+    assert annotations["AGE"].help == "The user's age"
+    assert annotations["AGE"].type == "int"
 
 
 def test_parse_google_with_defaults():
@@ -31,15 +32,15 @@ def test_parse_google_with_defaults():
     """
     annotations = parse_arg_annotations(script)
     
-    assert annotations["PORT"]["type"] == "int"
-    assert annotations["PORT"]["default"] == "8080"
-    assert annotations["PORT"]["help"] == "Server port"
+    assert annotations["PORT"].type == "int"
+    assert annotations["PORT"].default == "8080"
+    assert annotations["PORT"].help == "Server port"
     
-    assert annotations["HOST"]["type"] == "str"
-    assert annotations["HOST"]["default"] == "localhost"
+    assert annotations["HOST"].type == "str"
+    assert annotations["HOST"].default == "localhost"
     
-    assert annotations["DEBUG"]["type"] == "bool"
-    assert annotations["DEBUG"]["default"] == "false"
+    assert annotations["DEBUG"].type == "bool"
+    assert annotations["DEBUG"].default == "false"
 
 
 def test_parse_google_choice_annotations():
@@ -50,13 +51,13 @@ def test_parse_google_choice_annotations():
     """
     annotations = parse_arg_annotations(script)
     
-    assert annotations["ENV"]["type"] == "choice"
-    assert annotations["ENV"]["choices"] == ["dev", "staging", "prod"]
-    assert annotations["ENV"]["help"] == "Deployment environment"
+    assert annotations["ENV"].type == "choice"
+    assert annotations["ENV"].choices == ["dev", "staging", "prod"]
+    assert annotations["ENV"].help == "Deployment environment"
     
-    assert annotations["COLOR"]["type"] == "choice"
-    assert annotations["COLOR"]["choices"] == ["red", "green", "blue"]
-    assert annotations["COLOR"]["default"] == "blue"
+    assert annotations["COLOR"].type == "choice"
+    assert annotations["COLOR"].choices == ["red", "green", "blue"]
+    assert annotations["COLOR"].default == "blue"
 
 
 def test_parse_google_all_types():
@@ -70,20 +71,20 @@ def test_parse_google_all_types():
     """
     annotations = parse_arg_annotations(script)
     
-    assert annotations["NAME"]["type"] == "str"
-    assert annotations["COUNT"]["type"] == "int"
-    assert annotations["PRICE"]["type"] == "float"
-    assert annotations["ENABLED"]["type"] == "bool"
-    assert annotations["MODE"]["type"] == "choice"
-    assert annotations["MODE"]["choices"] == ["fast", "slow"]
+    assert annotations["NAME"].type == "str"
+    assert annotations["COUNT"].type == "int"
+    assert annotations["PRICE"].type == "float"
+    assert annotations["ENABLED"].type == "bool"
+    assert annotations["MODE"].type == "choice"
+    assert annotations["MODE"].choices == ["fast", "slow"]
 
 
 def test_google_annotations_with_argparse():
     """Test that Google annotations work with argparse."""
     annotations = {
-        "PORT": {"type": "int", "help": "Port", "default": "8080"},
-        "HOST": {"type": "str", "help": "Host", "default": "localhost"},
-        "DEBUG": {"type": "bool", "help": "Debug mode", "default": "false"},
+        "PORT": ArgumentAnnotation(type="int", help="Port", default="8080"),
+        "HOST": ArgumentAnnotation(type="str", help="Host", default="localhost"),
+        "DEBUG": ArgumentAnnotation(type="bool", help="Debug mode", default="false"),
     }
     
     # All should be optional due to defaults
@@ -110,8 +111,8 @@ def test_google_annotations_with_argparse():
 def test_mixed_required_optional():
     """Test mix of required and optional parameters."""
     annotations = {
-        "SERVICE": {"type": "str", "help": "Service name"},  # No default = required
-        "PORT": {"type": "int", "help": "Port", "default": "8080"},  # Has default = optional
+        "SERVICE": ArgumentAnnotation(type="str", help="Service name"),  # No default = required
+        "PORT": ArgumentAnnotation(type="int", help="Port", default="8080"),  # Has default = optional
     }
     
     parser = cli.build_dynamic_arg_parser(
