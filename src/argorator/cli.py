@@ -1,3 +1,10 @@
+"""Argorator CLI: expose shell script variables and positionals as CLI arguments.
+
+This tool parses a shell script to discover variable/positional usage, builds a
+matching argparse interface for undefined/environment-backed variables, and then
+either injects definitions and executes, prints the modified script, or prints
+export lines.
+"""
 import argparse
 import os
 import re
@@ -12,11 +19,30 @@ SPECIAL_VARS: Set[str] = {"@", "*", "#", "?", "$", "!", "0"}
 
 
 def read_text_file(file_path: Path) -> str:
+	"""Read and return the file's content as UTF-8 text.
+
+	Args:
+		file_path: Path to the file
+
+	Returns:
+		Entire file content as a string
+	"""
 	with file_path.open("r", encoding="utf-8") as f:
 		return f.read()
 
 
 def detect_shell_interpreter(script_text: str) -> List[str]:
+	"""Detect the shell interpreter command for the script.
+
+	Honors a shebang if present, normalizing to a common shell path. Defaults to
+	bash when a shebang is not detected.
+
+	Args:
+		script_text: The full script content
+
+	Returns:
+		A list suitable for subprocess (e.g. ["/bin/bash"])
+	"""
 	first_line = script_text.splitlines()[0] if script_text else ""
 	if first_line.startswith("#!"):
 		shebang = first_line[2:].strip()
@@ -34,11 +60,20 @@ def detect_shell_interpreter(script_text: str) -> List[str]:
 
 
 def parse_defined_variables(script_text: str) -> Set[str]:
+	"""Extract variable names that are assigned within the script.
+
+	Matches plain assignments and common declaration forms like export/local/
+	declare/readonly at the start of a line.
+	"""
 	assignment_pattern = re.compile(r"^\s*(?:export\s+|local\s+|declare(?:\s+-[a-zA-Z]+)?\s+|readonly\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=", re.MULTILINE)
 	return set(assignment_pattern.findall(script_text))
 
 
 def parse_variable_usages(script_text: str) -> Set[str]:
+	"""Find variable names referenced by $VAR or ${VAR...} syntax.
+
+	Special shell parameters (e.g., $@, $1) are excluded; see SPECIAL_VARS.
+	"""
 	brace_pattern = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)[^}]*\}")
 	simple_pattern = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
 	candidates: Set[str] = set()
@@ -48,6 +83,11 @@ def parse_variable_usages(script_text: str) -> Set[str]:
 
 
 def parse_positional_usages(script_text: str) -> Tuple[Set[int], bool]:
+	"""Detect positional parameter usage and varargs references in the script.
+
+	Returns a tuple of (set of numeric positions used, varargs_flag) where
+	varargs_flag is True if $@ or $* appears in the script.
+	"""
 	digit_pattern = re.compile(r"\$([1-9][0-9]*)")
 	varargs_pattern = re.compile(r"\$(?:@|\*)")
 	indices = {int(m) for m in digit_pattern.findall(script_text)}
@@ -56,6 +96,17 @@ def parse_positional_usages(script_text: str) -> Tuple[Set[int], bool]:
 
 
 def determine_variables(script_text: str) -> Tuple[Set[str], Dict[str, Optional[str]], Dict[str, str]]:
+	"""Classify used variables into defined, undefined, and environment-backed.
+
+	Args:
+		script_text: The script content to analyze
+
+	Returns:
+		(defined_vars, undefined_vars, env_vars)
+		- defined_vars: variables assigned within the script
+		- undefined_vars: mapping of missing variable names -> None
+		- env_vars: mapping of variable names -> current environment default
+	"""
 	defined_vars = parse_defined_variables(script_text)
 	used_vars = parse_variable_usages(script_text)
 	undefined_or_env = used_vars - defined_vars
@@ -70,6 +121,13 @@ def determine_variables(script_text: str) -> Tuple[Set[str], Dict[str, Optional[
 
 
 def build_dynamic_arg_parser(undefined_vars: Sequence[str], env_vars: Dict[str, str], positional_indices: Set[int], varargs: bool) -> argparse.ArgumentParser:
+	"""Construct an argparse parser for script-specific variables and positionals.
+
+	- Undefined variables become required options: --VAR
+	- Env-backed variables become optional with defaults from the environment
+	- Numeric positional references ($1, $2, ...) become positionals ARG1, ARG2, ...
+	- Varargs ($@ or $*) collects remaining args via an ARGS positional with nargs='*'
+	"""
 	parser = argparse.ArgumentParser(add_help=False)
 	# Options for variables
 	for name in undefined_vars:
@@ -85,6 +143,10 @@ def build_dynamic_arg_parser(undefined_vars: Sequence[str], env_vars: Dict[str, 
 
 
 def inject_variable_assignments(script_text: str, assignments: Dict[str, str]) -> str:
+	"""Insert shell assignments for provided variables at the top of the script.
+
+	Assignments are added after the shebang if present; values are shell-quoted.
+	"""
 	lines = script_text.splitlines()
 	injection_lines = ["# argorator: injected variable definitions"]
 	for name in sorted(assignments.keys()):
@@ -97,6 +159,10 @@ def inject_variable_assignments(script_text: str, assignments: Dict[str, str]) -
 
 
 def generate_export_lines(assignments: Dict[str, str]) -> str:
+	"""Return shell lines exporting the provided assignments.
+
+	Format: export VAR='value'
+	"""
 	lines = []
 	for name in sorted(assignments.keys()):
 		value = assignments[name]
@@ -105,6 +171,10 @@ def generate_export_lines(assignments: Dict[str, str]) -> str:
 
 
 def run_script_with_args(shell_cmd: List[str], script_text: str, positional_args: List[str]) -> int:
+	"""Execute the provided script text with a shell, passing positional args.
+
+	Runs the shell with -s -- to read the script from stdin. Returns the exit code.
+	"""
 	cmd = list(shell_cmd) + ["-s", "--"] + positional_args
 	process = subprocess.Popen(cmd, stdin=subprocess.PIPE, text=True)
 	assert process.stdin is not None
@@ -114,6 +184,7 @@ def run_script_with_args(shell_cmd: List[str], script_text: str, positional_args
 
 
 def build_top_level_parser() -> argparse.ArgumentParser:
+	"""Build the top-level argparse parser with run/compile/export subcommands."""
 	parser = argparse.ArgumentParser(prog="argorator", description="Execute or compile shell scripts with CLI-exposed variables")
 	subparsers = parser.add_subparsers(dest="subcmd")
 	# run
@@ -129,6 +200,14 @@ def build_top_level_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+	"""Program entry point.
+
+	Top-level flow:
+	1) Decide whether a subcommand (run/compile/export) is given
+	2) Otherwise, treat invocation as implicit `run <script> ...`
+	3) Parse script to discover variables/positionals and build a dynamic parser
+	4) Execute command: run/compile/export
+	"""
 	argv = list(argv) if argv is not None else sys.argv[1:]
 	# If first token is a known subcommand, parse with subparsers; otherwise treat as implicit run
 	subcommands = {"run", "compile", "export"}
