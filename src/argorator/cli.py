@@ -19,91 +19,64 @@ SPECIAL_VARS: Set[str] = {"@", "*", "#", "?", "$", "!", "0"}
 
 
 def parse_arg_annotations(script_text: str) -> Dict[str, Dict[str, str]]:
-	"""Parse comment-based annotations for argument metadata using docstring style.
+	"""Parse comment-based annotations for argument metadata using Google docstring style.
 	
-	Supports the following docstring-style formats:
-	- # :param VAR_NAME: description
-	- # :type VAR_NAME: type_name
-	- # :choices VAR_NAME: choice1, choice2, choice3
+	Supports the Google docstring-style format:
+	- # VAR_NAME (type): Description. Default: default_value
+	- # VAR_NAME (choice[opt1, opt2, opt3]): Description
 	
-	Or combined format:
-	- # :param type VAR_NAME: description
+	For choice types:
+	- # VAR_NAME (choice[opt1, opt2]): description
 	
 	Args:
 		script_text: The full script content
 		
 	Returns:
-		Dict mapping variable names to metadata dicts with 'type', 'help', and optionally 'choices'
+		Dict mapping variable names to metadata dicts with 'type', 'help', 'default', and optionally 'choices'
 	"""
 	annotations = {}
 	
-	# Parse :param entries for descriptions
-	param_pattern = re.compile(
-		r'^\s*#\s*:param\s+'
-		r'(?:(bool|int|float|str|string)\s+)?'  # Optional inline type
-		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name
-		r'\s*:\s*(.+)',  # Description
-		re.MULTILINE
+	# Pattern for Google-style docstring annotations
+	# Matches: # VAR_NAME (type): description. Default: value
+	# or: # VAR_NAME (choice[opt1, opt2]): description
+	# or: # VAR_NAME: description
+	pattern = re.compile(
+		r'^\s*#\s*'
+		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name (any case)
+		r'(?:\s*\('  # Optional type section
+		r'(bool|int|float|str|string|choice)'  # Type
+		r'(?:\[([^\]]+)\])?'  # Optional choices for choice type
+		r'\))?'
+		r'\s*:\s*'  # Colon separator
+		r'([^.]+?)' # Description (up to period or end)
+		r'(?:\.\s*[Dd]efault:\s*(.+?))?'  # Optional default value
+		r'\s*$',  # End of line
+		re.MULTILINE | re.IGNORECASE
 	)
 	
-	# Parse :type entries for types
-	type_pattern = re.compile(
-		r'^\s*#\s*:type\s+'
-		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name
-		r'\s*:\s*'
-		r'(bool|int|float|str|string|choice)',  # Type
-		re.MULTILINE
-	)
-	
-	# Parse :choices entries for choice options
-	choices_pattern = re.compile(
-		r'^\s*#\s*:choices\s+'
-		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name
-		r'\s*:\s*(.+)',  # Comma-separated choices
-		re.MULTILINE
-	)
-	
-	# First pass: collect all param entries
-	for match in param_pattern.finditer(script_text):
-		inline_type = match.group(1)
-		var_name = match.group(2)
-		description = match.group(3).strip()
-		
-		if var_name not in annotations:
-			annotations[var_name] = {}
-		
-		annotations[var_name]['help'] = description
-		if inline_type:
-			annotations[var_name]['type'] = inline_type if inline_type != 'string' else 'str'
-	
-	# Second pass: collect type entries
-	for match in type_pattern.finditer(script_text):
+	for match in pattern.finditer(script_text):
 		var_name = match.group(1)
-		var_type = match.group(2)
+		var_type = match.group(2) or 'str'
+		choices = match.group(3)
+		description = match.group(4).strip()
+		default = match.group(5)
 		
-		if var_name not in annotations:
-			annotations[var_name] = {}
+		# Normalize type
+		if var_type.lower() in ('string', 'str'):
+			var_type = 'str'
 		
-		# Normalize 'string' to 'str' for consistency
-		annotations[var_name]['type'] = var_type if var_type != 'string' else 'str'
-	
-	# Third pass: collect choices
-	for match in choices_pattern.finditer(script_text):
-		var_name = match.group(1)
-		choices_str = match.group(2)
+		metadata = {
+			'type': var_type.lower(),
+			'help': description
+		}
 		
-		if var_name not in annotations:
-			annotations[var_name] = {}
-		
-		annotations[var_name]['choices'] = [c.strip() for c in choices_str.split(',')]
-		# If choices are specified, default type to 'choice' if not already set
-		if 'type' not in annotations[var_name]:
-			annotations[var_name]['type'] = 'choice'
-	
-	# Set default type for entries without explicit type
-	for var_name, metadata in annotations.items():
-		if 'type' not in metadata:
-			metadata['type'] = 'str'
+		if var_type.lower() == 'choice' and choices:
+			metadata['choices'] = [c.strip() for c in choices.split(',')]
+			
+		if default:
+			metadata['default'] = default.strip()
+			
+		annotations[var_name] = metadata
 	
 	return annotations
 
@@ -244,18 +217,29 @@ def build_dynamic_arg_parser(
 	# Options for variables
 	for name in undefined_vars:
 		annotation = annotations.get(name, {})
-		var_type = annotation.get('type', 'string')
+		var_type = annotation.get('type', 'str')
 		help_text = annotation.get('help', '')
 		choices = annotation.get('choices')
+		default_value = annotation.get('default')
 		
 		kwargs = {
 			'dest': name,
-			'required': True,
 			'type': get_type_converter(var_type)
 		}
 		
-		if help_text:
-			kwargs['help'] = help_text
+		# If annotation provides a default, make it optional
+		if default_value is not None:
+			kwargs['default'] = get_type_converter(var_type)(default_value)
+			kwargs['required'] = False
+			if help_text:
+				kwargs['help'] = f"{help_text} (default: {default_value})"
+			else:
+				kwargs['help'] = f"(default: {default_value})"
+		else:
+			kwargs['required'] = True
+			if help_text:
+				kwargs['help'] = help_text
+		
 		if choices:
 			kwargs['choices'] = choices
 			
@@ -263,20 +247,27 @@ def build_dynamic_arg_parser(
 		
 	for name, value in env_vars.items():
 		annotation = annotations.get(name, {})
-		var_type = annotation.get('type', 'string')
+		var_type = annotation.get('type', 'str')
 		help_text = annotation.get('help', '')
 		choices = annotation.get('choices')
+		annotation_default = annotation.get('default')
+		
+		# Use annotation default if provided, otherwise use env value
+		default_value = annotation_default if annotation_default is not None else value
 		
 		# Build help text with default value info
 		help_parts = []
 		if help_text:
 			help_parts.append(help_text)
-		help_parts.append(f"(default from env: {value})")
+		if annotation_default is not None:
+			help_parts.append(f"(default: {annotation_default})")
+		else:
+			help_parts.append(f"(default from env: {value})")
 		full_help = ' '.join(help_parts)
 		
 		kwargs = {
 			'dest': name,
-			'default': value,
+			'default': get_type_converter(var_type)(default_value),
 			'required': False,
 			'help': full_help,
 			'type': get_type_converter(var_type)
