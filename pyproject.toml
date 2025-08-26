@@ -15,7 +15,9 @@ classifiers = [
 	"License :: OSI Approved :: MIT License",
 	"Operating System :: OS Independent",
 ]
-dependencies = []
+dependencies = [
+	"pydantic>=2.0",
+]
 
 [project.scripts]
 argorator = "argorator.cli:main"

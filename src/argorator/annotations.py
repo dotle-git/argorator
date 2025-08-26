@@ -2,8 +2,10 @@
 import re
 from typing import Dict
 
+from .models import ArgumentAnnotation
 
-def parse_arg_annotations(script_text: str) -> Dict[str, Dict[str, str]]:
+
+def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 	"""Parse comment-based annotations for argument metadata using Google docstring style.
 	
 	Supports the Google docstring-style format:
@@ -18,7 +20,7 @@ def parse_arg_annotations(script_text: str) -> Dict[str, Dict[str, str]]:
 		script_text: The full script content
 		
 	Returns:
-		Dict mapping variable names to metadata dicts with 'type', 'help', 'default', 'alias', and optionally 'choices'
+		Dict mapping variable names to ArgumentAnnotation models
 	"""
 	annotations = {}
 	
@@ -44,7 +46,7 @@ def parse_arg_annotations(script_text: str) -> Dict[str, Dict[str, str]]:
 	for match in pattern.finditer(script_text):
 		var_name = match.group(1)
 		var_type = match.group(2) or 'str'
-		choices = match.group(3)
+		choices_str = match.group(3)
 		alias = match.group(4)
 		description = match.group(5).strip()
 		default = match.group(6)
@@ -52,21 +54,25 @@ def parse_arg_annotations(script_text: str) -> Dict[str, Dict[str, str]]:
 		# Normalize type
 		if var_type.lower() in ('string', 'str'):
 			var_type = 'str'
+		else:
+			var_type = var_type.lower()
 		
-		metadata = {
-			'type': var_type.lower(),
+		# Build annotation data
+		annotation_data = {
+			'type': var_type,
 			'help': description
 		}
 		
-		if var_type.lower() == 'choice' and choices:
-			metadata['choices'] = [c.strip() for c in choices.split(',')]
+		if var_type == 'choice' and choices_str:
+			annotation_data['choices'] = [c.strip() for c in choices_str.split(',')]
 			
 		if default:
-			metadata['default'] = default.strip()
+			annotation_data['default'] = default.strip()
 			
 		if alias:
-			metadata['alias'] = alias.strip()
-			
-		annotations[var_name] = metadata
+			annotation_data['alias'] = alias.strip()
+		
+		# Create ArgumentAnnotation model
+		annotations[var_name] = ArgumentAnnotation(**annotation_data)
 	
 	return annotations

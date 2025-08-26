@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from .annotations import parse_arg_annotations
+from .models import ArgumentAnnotation
 
 
 SPECIAL_VARS: Set[str] = {"@", "*", "#", "?", "$", "!", "0"}
