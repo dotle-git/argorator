@@ -1,32 +1,78 @@
-# Argorator
+## Argorator
 
 Execute or compile shell scripts with CLI-exposed variables.
 
-Usage:
+[![PyPI](https://img.shields.io/pypi/v/argorator.svg)](https://pypi.org/project/argorator/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/argorator.svg)](https://pypi.org/project/argorator/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+### Why Argorator?
+
+- **Turn shell variables into CLI flags**: `$VAR` becomes `--var`. Undefined variables are required, env-backed variables are optional with defaults.
+- **Respect positionals**: `$1`, `$2`, … become `ARG1`, `ARG2`, …; `$@`/`$*` collects the rest.
+- **Three modes**: run the script, print a compiled script with injected definitions, or print `export VAR=...` lines.
+- **Shebang-friendly**: `#!/usr/bin/env argorator` lets scripts self-document required inputs.
+- **Shell-aware**: honors shebangs for `bash`, `sh/dash`, `zsh`, `ksh` (defaults to `bash`).
+
+### Installation
+
+```bash
+pip install argorator
+```
+
+### Requirements
+
+- **Python**: 3.9+
+- **OS**: Unix-like (Linux, macOS, WSL)
+
+## Quick start
+
+```bash
+# script.sh
+#!/bin/bash
+echo "Hello, $NAME!"
+```
+
+```bash
+# Provide required variable via flag (lowercased)
+argorator script.sh --name Alice
+# Hello, Alice!
+```
+
+## CLI overview
+
+You can run directly or use explicit subcommands:
 
 ```bash
 argorator <script> [--var value ...] [ARG1 ARG2 ...]
-argorator compile <script> [--var value ...] [ARG1 ARG2 ...]
-argorator export <script> [--var value ...] [ARG1 ARG2 ...]
+argorator run <script> [--var value ...] [ARG1 ARG2 ...]
+argorator compile <script> [--var value ...]
+argorator export <script> [--var value ...]
 ```
 
-- Undefined variables in the script become required `--var` options (lowercase).
-- Variables found only in the environment become optional `--var` options with defaults.
-- `$1`, `$2`, ... become positional arguments; `$@` or `$*` collect remaining args.
-- `compile` prints the modified script; `export` prints `export VAR=...` lines; default runs the script.
+- **Undefined variables** in the script become **required** flags: `--var` (lowercased; maps to original `$VAR`).
+- **Environment-backed variables** become **optional** flags with defaults from your environment.
+- **Positionals** `$1`, `$2`, … map to `ARG1`, `ARG2`, … and are required when referenced.
+- **Varargs** `$@`/`$*` collects remaining arguments as additional positionals after the numbered ones.
 
-Shebang:
+### Shebang usage
 
-```sh
+```bash
+# deploy.sh
 #!/usr/bin/env argorator
-# your script follows
+
+echo "Deploying $APP_NAME to $ENVIRONMENT"
+echo "Version: ${VERSION:-latest}"
+```
+
+```bash
+chmod +x deploy.sh
+./deploy.sh --app_name myapp --environment staging
 ```
 
 ## Examples
 
-### Basic Usage: Undefined Variables
-
-When your script uses undefined variables, they become required CLI options:
+### Required variables become flags
 
 ```bash
 # script.sh
@@ -36,19 +82,12 @@ echo "You are $AGE years old."
 ```
 
 ```bash
-# Running the script
-$ argorator script.sh --name Alice --age 25
-Hello, Alice!
-You are 25 years old.
-
-# Missing required variable shows error
-$ argorator script.sh --name Alice
-error: the following arguments are required: --age
+argorator script.sh --name Alice --age 25
+# Hello, Alice!
+# You are 25 years old.
 ```
 
-### Environment Variables with Defaults
-
-Variables that exist in your environment become optional CLI options:
+### Env-backed variables are optional
 
 ```bash
 # script.sh
@@ -59,22 +98,20 @@ echo "Custom: $CUSTOM_VAR"
 ```
 
 ```bash
-# Environment variables can be overridden
-$ argorator script.sh --home /custom/home --custom_var test
-Home: /custom/home
-User: [your current user]
-Custom: test
+# Override env values if desired
+argorator script.sh --home /custom/home --custom_var test
+# Home: /custom/home
+# User: [your current user]
+# Custom: test
 
-# Or use existing environment values
-$ argorator script.sh --custom_var test
-Home: /home/youruser
-User: youruser
-Custom: test
+# Or use existing environment
+argorator script.sh --custom_var test
+# Home: /home/youruser
+# User: youruser
+# Custom: test
 ```
 
-### Positional Arguments
-
-Scripts using `$1`, `$2`, etc. accept positional arguments:
+### Positionals and varargs
 
 ```bash
 # greet.sh
@@ -84,14 +121,10 @@ echo "Your message: $2"
 ```
 
 ```bash
-$ argorator greet.sh World "Have a nice day"
-Hello World!
-Your message: Have a nice day
+argorator greet.sh World "Have a nice day"
+# Hello World!
+# Your message: Have a nice day
 ```
-
-### Variable Arguments with $@ or $*
-
-Use `$@` or `$*` to collect remaining arguments:
 
 ```bash
 # process.sh
@@ -103,15 +136,13 @@ echo "Files to process: $@"
 ```
 
 ```bash
-$ argorator process.sh build --verbose file1.txt file2.txt file3.txt
-Command: build
-Options: --verbose
-Files to process: file1.txt file2.txt file3.txt
+argorator process.sh build --verbose file1.txt file2.txt file3.txt
+# Command: build
+# Options: --verbose
+# Files to process: file1.txt file2.txt file3.txt
 ```
 
-### Compile Mode
-
-Generate the modified script without executing it:
+### Compile mode (print modified script)
 
 ```bash
 # template.sh
@@ -122,125 +153,66 @@ echo "Starting $SERVICE_NAME on port $PORT"
 ```
 
 ```bash
-# Compile with injected variables
-$ argorator compile template.sh --service_name api-server --port 3000
-#!/bin/bash
-SERVICE_NAME="api-server"
-PORT="3000"
-SERVICE_NAME=$SERVICE_NAME
-PORT=${PORT:-8080}
-echo "Starting $SERVICE_NAME on port $PORT"
-
-# Redirect to create a new script
-$ argorator compile template.sh --service_name api-server > start-api.sh
+argorator compile template.sh --service_name api-server --port 3000
+# Prints a script with injected assignments at the top
+# ... which you can redirect to a new file if desired
+argorator compile template.sh --service_name api-server > start-api.sh
 ```
 
-### Export Mode
-
-Generate export statements for use in shell environments:
+### Export mode (print exports)
 
 ```bash
-# config.sh
-#!/bin/bash
-echo "Database: $DB_HOST:$DB_PORT"
-echo "API Key: $API_KEY"
+argorator export config.sh --db_host localhost --db_port 5432 --api_key secret123
+# export DB_HOST='localhost'
+# export DB_PORT='5432'
+# export API_KEY='secret123'
+
+# Convenient for shell sessions
+eval "$(argorator export config.sh --db_host localhost --db_port 5432 --api_key secret123)"
 ```
+
+## How it works
+
+- Parses your script to find:
+  - **Defined variables**: assignments in the script (e.g., `FOO=bar`, `export FOO=bar`)
+  - **Referenced variables**: `$VAR` or `${VAR}` usages
+  - **Positionals**: `$1`, `$2`, … and varargs `$@`/`$*`
+- Builds a dynamic `argparse` interface:
+  - Missing variables → required `--var` options
+  - Env variables present → optional `--var` with defaults
+  - `$1`, `$2`, … → positional arguments `ARG1`, `ARG2`, …
+- Injects resolved assignments at the top of the script (after the shebang if present), using safe shell quoting.
+- Executes using the detected shell, or prints the compiled script/exports.
+
+## Limitations and notes
+
+- Parsing is regex-based and targets common patterns. Extremely dynamic shell constructs may not be detected.
+- Option names are lowercased (e.g., `$API_KEY` → `--api_key`) but values are assigned back to the original variable names.
+- Scripts can still reassign variables after injection, which may affect behavior.
+- Shebang detection normalizes common shells; default is `/bin/bash`.
+- Windows is not supported natively; use WSL.
+
+## Troubleshooting
+
+- **Missing required variable**: Provide it as a flag, e.g., `--var value`.
+- **Missing positional `$N`**: Supply the corresponding positional (e.g., `ARG1` for `$1`).
+- **Script not found**: Ensure the path exists; relative and absolute paths are supported.
+
+## Development
 
 ```bash
-# Generate exports
-$ argorator export config.sh --db_host localhost --db_port 5432 --api_key secret123
-export DB_HOST="localhost"
-export DB_PORT="5432"
-export API_KEY="secret123"
+# Clone and install in editable mode
+python -m pip install --upgrade pip
+pip install -e .
 
-# Use in shell session
-$ eval "$(argorator export config.sh --db_host localhost --db_port 5432 --api_key secret123)"
-$ echo $DB_HOST
-localhost
+# Run tests
+pytest -q
 ```
 
-### Using Argorator as Shebang
+## Contributing
 
-Make scripts directly executable with argument handling:
+Issues and pull requests are welcome. Please include reproduction steps and tests when possible.
 
-```bash
-# deploy.sh
-#!/usr/bin/env argorator
-# Script to deploy an application
+## License
 
-echo "Deploying $APP_NAME to $ENVIRONMENT"
-echo "Version: ${VERSION:-latest}"
-
-if [ "$ENVIRONMENT" = "production" ]; then
-    echo "🚨 Production deployment - be careful!"
-fi
-
-echo "Deploying to server: $1"
-shift
-echo "Additional options: $@"
-```
-
-```bash
-# Make executable and run directly
-$ chmod +x deploy.sh
-$ ./deploy.sh --app_name myapp --environment staging server1.example.com --dry-run --verbose
-Deploying myapp to staging
-Version: latest
-Deploying to server: server1.example.com
-Additional options: --dry-run --verbose
-```
-
-### Complex Example: Build Script
-
-```bash
-# build.sh
-#!/usr/bin/env argorator
-# Build script with multiple options
-
-set -e  # Exit on error
-
-echo "Building $PROJECT_NAME"
-echo "Build type: ${BUILD_TYPE:-release}"
-echo "Output directory: ${OUTPUT_DIR:-./build}"
-
-# Use positional arguments for build targets
-if [ $# -eq 0 ]; then
-    TARGETS="all"
-else
-    TARGETS="$@"
-fi
-
-echo "Building targets: $TARGETS"
-
-# Conditional logic based on variables
-if [ "$CLEAN" = "true" ]; then
-    echo "Cleaning build directory..."
-    rm -rf "${OUTPUT_DIR:-./build}"
-fi
-
-if [ "$VERBOSE" = "true" ]; then
-    echo "Verbose mode enabled"
-    set -x
-fi
-
-echo "Build complete!"
-```
-
-```bash
-# Various ways to use the build script
-$ ./build.sh --project_name myproject
-$ ./build.sh --project_name myproject --build_type debug --clean true
-$ ./build.sh --project_name myproject --verbose true lib tests docs
-$ ./build.sh --project_name myproject --output_dir /tmp/build all
-```
-
-## Installation
-
-```bash
-pip install argorator
-```
-
-## Requirements
-
-- Python 3.8+
-- Unix-like operating system (Linux, macOS, WSL)
+MIT — see [LICENSE](./LICENSE).
