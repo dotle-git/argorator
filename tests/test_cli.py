@@ -52,6 +52,38 @@ def test_compile_injects_assignments(tmp_path: Path, monkeypatch: pytest.MonkeyP
 	assert rc == 0
 
 
+def test_compile_echo_transforms_lines(tmp_path: Path):
+	script = write_temp_script(
+		tmp_path,
+		"""#!/bin/bash
+NAME=${NAME:-guest}
+echo Hello | sed 's/llo/ya/'
+if [ "$NAME" = "admin" ]; then
+	printf "%s\n" done
+fi
+""",
+	)
+	rc = cli.main(["compile", str(script), "--echo"])  # no variables needed due to default
+	assert rc == 0
+
+
+def test_run_echo_does_not_execute_commands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+	# Create a script that would create a file if executed
+	script = write_temp_script(
+		tmp_path,
+		"""#!/bin/bash
+touch created.txt
+echo "Hello $NAME" | tee output.txt
+""",
+	)
+	# Run in echo mode so commands are printed, not executed
+	rc = cli.main(["run", str(script), "--name", "Alice", "--echo"])
+	assert rc == 0
+	# Ensure side effects did not occur
+	assert not (tmp_path / "created.txt").exists()
+	assert not (tmp_path / "output.txt").exists()
+
+
 def test_export_prints_envs_and_undef(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 	monkeypatch.setenv("HOME", "/tmp/home")
 	script = write_temp_script(tmp_path, "echo $HOME $NAME\n")

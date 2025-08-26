@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- New `--echo` option to preview what the script would execute without running it
+  - Works with `run` (prints commands while doing no work) and `compile` (prints echo-transformed script)
+  - Special handling for pipes and operators by quoting entire original lines
+
 ### Fixed
 - Set parser program name to the script name instead of "cli.py" in help output
 
