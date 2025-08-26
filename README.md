@@ -15,65 +15,6 @@ Ever written a script that needs input? Argorator automatically creates command-
 pip install argorator
 ```
 
-## Before and After
-
-### Before: Manual argument parsing (painful!)
-
-```bash
-#!/bin/bash
-
-# Parse command line arguments
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    --name)
-      NAME="$2"
-      shift 2
-      ;;
-    --age)
-      AGE="$2"
-      shift 2
-      ;;
-    --help)
-      echo "Usage: $0 --name NAME --age AGE"
-      echo "  --name NAME    Your name"
-      echo "  --age AGE      Your age"
-      exit 0
-      ;;
-    *)
-      echo "Unknown option $1"
-      exit 1
-      ;;
-  esac
-done
-
-# Check required arguments
-if [[ -z "$NAME" ]]; then
-  echo "Error: --name is required"
-  exit 1
-fi
-
-if [[ -z "$AGE" ]]; then
-  echo "Error: --age is required"
-  exit 1
-fi
-
-# Finally, your actual script
-echo "Hello $NAME!"
-echo "You are $AGE years old"
-```
-
-### After: With Argorator (simple!)
-
-```bash
-echo "Hello $NAME!"
-echo "You are $AGE years old"
-```
-
-Run it:
-```bash
-argorator script.sh --name John --age 25
-```
-
 ## How to Use
 
 ### Step 1: Write a normal script
@@ -198,6 +139,65 @@ done
 Run it:
 ```bash
 argorator list.sh doc1.txt doc2.txt doc3.txt
+```
+
+## Before and After
+
+### Before: Manual argument parsing (painful!)
+
+```bash
+#!/bin/bash
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --name)
+      NAME="$2"
+      shift 2
+      ;;
+    --age)
+      AGE="$2"
+      shift 2
+      ;;
+    --help)
+      echo "Usage: $0 --name NAME --age AGE"
+      echo "  --name NAME    Your name"
+      echo "  --age AGE      Your age"
+      exit 0
+      ;;
+    *)
+      echo "Unknown option $1"
+      exit 1
+      ;;
+  esac
+done
+
+# Check required arguments
+if [[ -z "$NAME" ]]; then
+  echo "Error: --name is required"
+  exit 1
+fi
+
+if [[ -z "$AGE" ]]; then
+  echo "Error: --age is required"
+  exit 1
+fi
+
+# Finally, your actual script
+echo "Hello $NAME!"
+echo "You are $AGE years old"
+```
+
+### After: With Argorator (simple!)
+
+```bash
+echo "Hello $NAME!"
+echo "You are $AGE years old"
+```
+
+Run it:
+```bash
+argorator script.sh --name John --age 25
 ```
 
 ## Requirements
