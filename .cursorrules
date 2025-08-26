@@ -12,124 +12,81 @@ Argorator is a Python tool that transforms shell scripts into fully-featured com
 │   ├── cli.py             # Core CLI implementation
 │   └── annotations.py     # Google-style annotation parser
 ├── tests/                  # Test files
-│   ├── test_cli.py
-│   ├── test_annotations.py
-│   ├── test_google_annotations.py
-│   └── test_edge_cases.py
 ├── examples/               # Example scripts demonstrating features
-│   ├── google_style_annotations.sh
-│   ├── google_simple.sh
-│   └── boolean_flags_example.sh
 ├── docs/                   # Documentation
-│   ├── README.md          # Main documentation index
 │   └── features/          # Feature-specific documentation
-│       └── google_style_annotations.md  # Google-style annotations guide (v0.3.0)
 ├── README.md              # Project README
 ├── CHANGELOG.md           # Version history (Keep a Changelog format)
-├── pyproject.toml         # Project configuration (version 0.3.0)
+├── CONTRIBUTING.md        # Contribution guidelines
+├── pyproject.toml         # Project configuration (contains version)
 └── LICENSE               # MIT License
 ```
 
-## Version Management and Changelog
+## CRITICAL: Version and Changelog Management
 
-### Version Bumping Rules
-Follow [Semantic Versioning](https://semver.org/):
+### When Making ANY Changes:
+1. **ALWAYS update CHANGELOG.md FIRST** under `[Unreleased]` section
+2. Use appropriate section: Added, Changed, Fixed, Deprecated, Removed, Security
+3. Write clear, user-facing descriptions
+
+### Version Bumping:
 - **MAJOR** (x.0.0): Breaking changes to CLI interface or script compatibility
 - **MINOR** (0.x.0): New features, backwards compatible
 - **PATCH** (0.0.x): Bug fixes, documentation updates
 
-### When Making Changes
-1. **Update CHANGELOG.md FIRST** under `[Unreleased]` section
-2. When ready to release, update version in `pyproject.toml`
-3. Move `[Unreleased]` items to new version section with date
-4. Update version references in documentation
+### Release Process:
+1. Update version in `pyproject.toml`
+2. Move `[Unreleased]` items to new version section with date in CHANGELOG.md
+3. Update version references in documentation where relevant
+4. Commit message: "Release vX.Y.Z"
 
-### Changelog Format
-```markdown
-## [Unreleased]
+## Code Organization
 
-### Added
-- New features
+- **cli.py**: Main CLI logic, argument parsing, script execution
+- **annotations.py**: Google-style comment parsing functionality
+- Keep modules focused - if a file exceeds ~400 lines, consider splitting
 
-### Changed
-- Changes to existing functionality
+## Testing Requirements
 
-### Fixed
-- Bug fixes
+- Add tests for ALL new functionality
+- Test files should mirror source structure
+- Use pytest fixtures for common test data
+- Integration tests should use temporary files
+- Test edge cases and error conditions
 
-### Deprecated
-- Features to be removed
+## Documentation Updates
 
-### Removed
-- Removed features
-
-### Security
-- Security fixes
-```
-
-### Example Workflow
-```bash
-# 1. Make changes and update CHANGELOG.md under [Unreleased]
-# 2. When ready to release:
-#    - Update version in pyproject.toml
-#    - Update CHANGELOG.md with version and date
-#    - Update docs with version info where relevant
-# 3. Commit with message like "Release v0.3.0"
-```
-
-## Key Features (v0.3.0)
-
-### Google-Style Annotations
-Scripts can use Google docstring-style comments to specify type and help information:
-
-```bash
-# VARIABLE_NAME (type): Description. Default: default_value
-# VARIABLE_NAME (type) [alias: -x]: Description with alias
-# ENVIRONMENT (choice[dev, staging, prod]): Target environment
-```
-
-Supported types: str, int, float, bool, choice[...]
-
-### Boolean Flags
-- Boolean arguments use store_true/store_false actions
-- No value required: use `-v` instead of `--verbose true`
-- Default false: flag presence sets to true
-- Default true: flag presence sets to false
-
-### Parameter Aliases
-- Short aliases can be specified: `[alias: -x]`
-- Aliases appear first in help: `-v, --verbose`
-
-### Core Functionality
-- Automatic detection of undefined variables in shell scripts
-- Environment variable defaults
-- Support for positional arguments ($1, $2, $@)
-- Three modes: run (default), compile, export
-- Shebang support: `#!/usr/bin/env argorator`
+- New features require documentation in `docs/features/`
+- Update examples/ with practical demonstrations
+- Include version info for new features
+- Keep README.md concise - detailed docs go in docs/
 
 ## Code Style
-- Python code follows PEP 8
-- Shell scripts use UPPERCASE for variables
-- Type hints are used where applicable
-- Comprehensive docstrings for all functions
 
-## Testing
-- Tests use pytest
-- Test files mirror source structure
-- Integration tests use temporary files
-- Type conversion and validation are thoroughly tested
+- Follow PEP 8 strictly
+- Use type hints for function signatures
+- Write comprehensive docstrings
+- Shell script variables must be UPPERCASE
+- Boolean CLI flags should use store_true/store_false
 
-## Documentation Guidelines
-- Feature documentation goes in `docs/features/`
-- Each feature gets its own markdown file
-- Examples should be practical and runnable
-- Include both simple and complex examples
-- Version information should be included for new features
+## Important Implementation Notes
 
-## Important Implementation Details
-- The `parse_arg_annotations()` function in `annotations.py` extracts Google-style comments
-- Type conversion happens in `build_dynamic_arg_parser()` in `cli.py`
 - Boolean values are converted to lowercase "true"/"false" for shell compatibility
 - Annotations with defaults make arguments optional
 - Choice validation is handled by argparse
-- Boolean flags use argparse actions (store_true/store_false) instead of type conversion
+- Environment variables are used as defaults when available
+
+## Common Pitfalls to Avoid
+
+- Don't forget to update CHANGELOG.md
+- Don't add required arguments after optional ones
+- Don't use mutable default arguments
+- Don't break backward compatibility without a major version bump
+- Don't create documentation without examples
+
+## Commit Message Guidelines
+
+- Use present tense ("Add feature" not "Added feature")
+- First line should be 50 characters or less
+- Reference issues and pull requests where applicable
+- Explain WHY not just WHAT in the body
