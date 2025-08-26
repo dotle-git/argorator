@@ -1,0 +1,197 @@
+import argparse
+import os
+import re
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+from typing import Dict, List, Optional, Sequence, Set, Tuple
+
+
+SPECIAL_VARS: Set[str] = {"@", "*", "#", "?", "$", "!", "0"}
+
+
+def read_text_file(file_path: Path) -> str:
+	with file_path.open("r", encoding="utf-8") as f:
+		return f.read()
+
+
+def detect_shell_interpreter(script_text: str) -> List[str]:
+	first_line = script_text.splitlines()[0] if script_text else ""
+	if first_line.startswith("#!"):
+		shebang = first_line[2:].strip()
+		# Normalize common shells
+		if "bash" in shebang:
+			return ["/bin/bash"]
+		if re.search(r"\b(sh|dash)\b", shebang):
+			return ["/bin/sh"]
+		if "zsh" in shebang:
+			return ["/bin/zsh"]
+		if "ksh" in shebang:
+			return ["/bin/ksh"]
+	# Default
+	return ["/bin/bash"]
+
+
+def parse_defined_variables(script_text: str) -> Set[str]:
+	assignment_pattern = re.compile(r"^\s*(?:export\s+|local\s+|declare(?:\s+-[a-zA-Z]+)?\s+|readonly\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=", re.MULTILINE)
+	return set(assignment_pattern.findall(script_text))
+
+
+def parse_variable_usages(script_text: str) -> Set[str]:
+	brace_pattern = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)[^}]*\}")
+	simple_pattern = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
+	candidates: Set[str] = set()
+	candidates.update(brace_pattern.findall(script_text))
+	candidates.update(simple_pattern.findall(script_text))
+	return {name for name in candidates if name and name not in SPECIAL_VARS}
+
+
+def parse_positional_usages(script_text: str) -> Tuple[Set[int], bool]:
+	digit_pattern = re.compile(r"\$([1-9][0-9]*)")
+	varargs_pattern = re.compile(r"\$(?:@|\*)")
+	indices = {int(m) for m in digit_pattern.findall(script_text)}
+	varargs = bool(varargs_pattern.search(script_text))
+	return indices, varargs
+
+
+def determine_variables(script_text: str) -> Tuple[Set[str], Dict[str, Optional[str]], Dict[str, str]]:
+	defined_vars = parse_defined_variables(script_text)
+	used_vars = parse_variable_usages(script_text)
+	undefined_or_env = used_vars - defined_vars
+	env_vars: Dict[str, str] = {}
+	undefined_vars: Dict[str, Optional[str]] = {}
+	for name in sorted(undefined_or_env):
+		if name in os.environ:
+			env_vars[name] = os.environ[name]
+		else:
+			undefined_vars[name] = None
+	return defined_vars, undefined_vars, env_vars
+
+
+def build_dynamic_arg_parser(undefined_vars: Sequence[str], env_vars: Dict[str, str], positional_indices: Set[int], varargs: bool) -> argparse.ArgumentParser:
+	parser = argparse.ArgumentParser(add_help=False)
+	# Options for variables
+	for name in undefined_vars:
+		parser.add_argument(f"--{name}", dest=name, required=True)
+	for name, value in env_vars.items():
+		parser.add_argument(f"--{name}", dest=name, default=value, required=False)
+	# Positional arguments
+	for index in sorted(positional_indices):
+		parser.add_argument(f"ARG{index}")
+	if varargs:
+		parser.add_argument("ARGS", nargs="*")
+	return parser
+
+
+def inject_variable_assignments(script_text: str, assignments: Dict[str, str]) -> str:
+	lines = script_text.splitlines()
+	injection_lines = ["# argorator: injected variable definitions"]
+	for name in sorted(assignments.keys()):
+		value = assignments[name]
+		injection_lines.append(f"{name}={shlex.quote(value)}")
+	injection_block = "\n".join(injection_lines) + "\n"
+	if lines and lines[0].startswith("#!"):
+		return lines[0] + "\n" + injection_block + "\n".join(lines[1:]) + ("\n" if script_text.endswith("\n") else "")
+	return injection_block + script_text
+
+
+def generate_export_lines(assignments: Dict[str, str]) -> str:
+	lines = []
+	for name in sorted(assignments.keys()):
+		value = assignments[name]
+		lines.append(f"export {name}={shlex.quote(value)}")
+	return "\n".join(lines)
+
+
+def run_script_with_args(shell_cmd: List[str], script_text: str, positional_args: List[str]) -> int:
+	cmd = list(shell_cmd) + ["-s", "--"] + positional_args
+	process = subprocess.Popen(cmd, stdin=subprocess.PIPE, text=True)
+	assert process.stdin is not None
+	process.stdin.write(script_text)
+	process.stdin.close()
+	return process.wait()
+
+
+def build_top_level_parser() -> argparse.ArgumentParser:
+	parser = argparse.ArgumentParser(prog="argorator", description="Execute or compile shell scripts with CLI-exposed variables")
+	parser.add_argument("command", nargs="?", help="Mode: 'compile' or 'export'; omit to run")
+	parser.add_argument("script", nargs="?", help="Path to the shell script")
+	parser.add_argument("rest", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
+	return parser
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+	argv = list(argv) if argv is not None else sys.argv[1:]
+	# Help handling
+	if not argv or argv[0] in ("-h", "--help"):
+		top = build_top_level_parser()
+		top.print_help()
+		return 0
+	# Manual pre-parse for subcommand vs script
+	command = "run"
+	script_arg: Optional[str] = None
+	rest_args: List[str] = []
+	if argv and argv[0] in {"compile", "export"}:
+		command = argv[0]
+		if len(argv) < 2:
+			print("error: script path is required", file=sys.stderr)
+			return 2
+		script_arg = argv[1]
+		rest_args = argv[2:]
+	else:
+		script_arg = argv[0]
+		rest_args = argv[1:]
+	# Validate script
+	script_path = Path(script_arg)
+	if not script_path.exists():
+		print(f"error: script not found: {script_path}", file=sys.stderr)
+		return 2
+	script_text = read_text_file(script_path)
+	# Parse script
+	defined_vars, undefined_vars_map, env_vars = determine_variables(script_text)
+	positional_indices, varargs = parse_positional_usages(script_text)
+	# Build dynamic parser
+	undefined_names = sorted(undefined_vars_map.keys())
+	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs)
+	try:
+		dyn_ns = dyn_parser.parse_args(rest_args)
+	except SystemExit as exc:
+		return int(exc.code)
+	# Collect resolved variable assignments
+	assignments: Dict[str, str] = {}
+	for name in undefined_names:
+		value = getattr(dyn_ns, name, None)
+		if value is None:
+			print(f"error: missing required --{name}", file=sys.stderr)
+			return 2
+		assignments[name] = str(value)
+	for name in env_vars.keys():
+		value = getattr(dyn_ns, name, env_vars[name])
+		assignments[name] = str(value)
+	# Collect positional args for shell invocation
+	positional_values: List[str] = []
+	for index in sorted(positional_indices):
+		attr = f"ARG{index}"
+		value = getattr(dyn_ns, attr, None)
+		if value is None:
+			print(f"error: missing positional argument ${index}", file=sys.stderr)
+			return 2
+		positional_values.append(str(value))
+	if varargs:
+		positional_values.extend([str(v) for v in getattr(dyn_ns, "ARGS", [])])
+	# Prepare outputs per command
+	if command == "export":
+		print(generate_export_lines(assignments))
+		return 0
+	modified_text = inject_variable_assignments(script_text, assignments)
+	if command == "compile":
+		print(modified_text, end="" if modified_text.endswith("\n") else "\n")
+		return 0
+	# run
+	shell_cmd = detect_shell_interpreter(script_text)
+	return run_script_with_args(shell_cmd, modified_text, positional_values)
+
+
+if __name__ == "__main__":
+	sys.exit(main())
