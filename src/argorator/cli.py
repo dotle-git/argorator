@@ -128,12 +128,13 @@ def build_dynamic_arg_parser(undefined_vars: Sequence[str], env_vars: Dict[str, 
 	- Numeric positional references ($1, $2, ...) become positionals ARG1, ARG2, ...
 	- Varargs ($@ or $*) collects remaining args via an ARGS positional with nargs='*'
 	"""
-	parser = argparse.ArgumentParser(add_help=False)
+	parser = argparse.ArgumentParser(add_help=True)
 	# Options for variables
 	for name in undefined_vars:
 		parser.add_argument(f"--{name.lower()}", dest=name, required=True)
 	for name, value in env_vars.items():
-		parser.add_argument(f"--{name.lower()}", dest=name, default=value, required=False)
+		help_text = f"(default from env: {value})"
+		parser.add_argument(f"--{name.lower()}", dest=name, default=value, required=False, help=help_text)
 	# Positional arguments
 	for index in sorted(positional_indices):
 		parser.add_argument(f"ARG{index}")

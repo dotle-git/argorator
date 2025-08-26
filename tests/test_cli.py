@@ -69,3 +69,34 @@ def test_implicit_run_path(tmp_path: Path):
 	script = write_temp_script(tmp_path, SCRIPT_SIMPLE)
 	rc = cli.main([str(script), "--name", "Bob"])
 	assert rc == 0
+
+
+def test_help_shows_env_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
+	"""Test that environment variable defaults are shown in help text."""
+	# Set environment variables that will be used in the script
+	monkeypatch.setenv("HOME", "/home/testuser")
+	monkeypatch.setenv("USER", "testuser")
+	
+	# Script that uses both undefined variables and env variables
+	script_content = """#!/bin/bash
+echo "Home: $HOME"
+echo "User: $USER"
+echo "Name: $NAME"
+"""
+	script = write_temp_script(tmp_path, script_content)
+	
+	# Try to run with --help and capture output
+	with pytest.raises(SystemExit) as exc_info:
+		cli.main([str(script), "--help"])
+	
+	# Check that exit code is 0 for help
+	assert exc_info.value.code == 0
+	
+	# Capture the printed output
+	captured = capsys.readouterr()
+	
+	# Verify that help text shows the default values from environment
+	assert "(default from env: /home/testuser)" in captured.out
+	assert "(default from env: testuser)" in captured.out
+	# NAME should be required and not have a default
+	assert "--name" in captured.out
