@@ -183,6 +183,34 @@ Processing files:
   - doc3.txt
 ```
 
+## 🧾 JSON Input (new)
+
+You can pass a JSON object instead of CLI flags. Argorator maps JSON keys to the expected arguments.
+
+- Use `--json-input` with an inline JSON object:
+
+```bash
+argorator script.sh --json-input '{"NAME":"Alice","ARG1":"first","ARGS":["r1","r2"]}'
+```
+
+- Or pipe JSON via stdin when no CLI args are provided (except `--help`):
+
+```bash
+echo '{"NAME":"Alice"}' | argorator script.sh
+```
+
+Notes:
+- CLI flags override values from JSON when both are provided
+- Keys matching variable names (case-insensitive) map to `--var value`
+- `ARG<n>` keys map to positionals; `ARGS` maps to additional args (list or scalar)
+- Scripts can opt out of auto-reading JSON from stdin with a directive comment:
+
+```bash
+# argorator: no-json-stdin
+```
+
+Caveat: If your script already reads from stdin, piping JSON to stdin for Argorator will conflict. Use `--json-input` instead.
+
 ## 🛠️ Advanced Usage
 
 ### Compile Mode
