@@ -20,7 +20,6 @@ pip install argorator
 ### Step 1: Write a normal script
 
 ```bash
-# hello.sh
 echo "Hello $NAME!"
 echo "You are $AGE years old"
 ```
@@ -61,7 +60,6 @@ Add this line to the top of your script:
 
 ```bash
 #!/usr/bin/env argorator
-# greet.sh
 
 echo "Hi $NAME!"
 if [ "$LOUD" = "true" ]; then
@@ -89,7 +87,6 @@ NICE TO MEET YOU!
 Any `$VARIABLE` in your script becomes a `--variable` option:
 
 ```bash
-# backup.sh
 echo "Copying $SOURCE to $DEST"
 ```
 
@@ -103,7 +100,6 @@ argorator backup.sh --source file.txt --dest backup.txt
 If a variable exists in your environment, it becomes optional with a default:
 
 ```bash
-# show-user.sh
 echo "Current user: $USER"
 echo "Home folder: $HOME"
 ```
@@ -122,7 +118,6 @@ Shows:
 ### Use $1, $2 for ordered inputs
 
 ```bash
-# copy.sh
 cp $1 $2
 echo "Copied $1 to $2"
 ```
@@ -135,7 +130,6 @@ argorator copy.sh file1.txt file2.txt
 ### Use $@ for multiple files
 
 ```bash
-# list.sh
 echo "Files:"
 for file in "$@"; do
     echo "- $file"

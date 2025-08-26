@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Simplified README.md language and examples for new developers
+- Removed file name comments from examples for cleaner code blocks
 - Removed advanced usage and "how it works" sections
 - Streamlined examples for better clarity and focus
 
