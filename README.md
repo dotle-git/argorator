@@ -154,6 +154,29 @@ Processing files:
 
 ## 🛠️ Advanced Usage
 
+### Type Hints
+
+Add type annotations to your variables using special comments. Argorator will validate and convert arguments automatically:
+
+```bash
+#!/bin/bash
+# @type COUNT: int
+# @type PRICE: float
+# @type VERBOSE: bool
+# @type NAME: str
+
+echo "Processing $COUNT items at \$$PRICE each"
+if [ "$VERBOSE" = "true" ]; then
+    echo "Customer: $NAME"
+fi
+```
+
+Supported types:
+- `int`: Integer values
+- `float`: Floating-point numbers  
+- `bool`: Boolean values (accepts: true/1/yes/y/on for true, false/0/no/n/off for false)
+- `str`: String values (default if no type specified)
+
 ### Compile Mode
 
 Generate a standalone script with variables pre-filled:
@@ -169,6 +192,29 @@ Generate shell export statements:
 ```bash
 $ eval "$(argorator export script.sh --var value)"
 ```
+
+### Verbose/Debug Mode
+
+Use `-v` or `--verbose` to see detailed information about how Argorator parses your script:
+
+```bash
+$ argorator -v script.sh --name "Alice" --count 5
+[DEBUG] Reading script: script.sh
+[DEBUG] Script size: 123 bytes
+[DEBUG] Variables defined in script: []
+[DEBUG] Undefined variables (required): ['COUNT', 'NAME']
+[DEBUG] Environment variables (optional): []
+[DEBUG] Type hints found: {'COUNT': 'int'}
+[DEBUG] Building argument parser...
+[DEBUG] Parsing arguments: ['--name', 'Alice', '--count', '5']
+[DEBUG] Variable COUNT = 5
+[DEBUG] Variable NAME = Alice
+[DEBUG] Executing command: run
+[DEBUG] Shell interpreter: /bin/bash
+...
+```
+
+This helps troubleshoot issues and understand how variables are being detected and processed.
 
 ## 🔧 How It Works
 
