@@ -2,7 +2,8 @@ name: pypi-publish
 
 on:
   push:
-    branches: [ main, master ]
+    tags:
+      - 'v*'
 
 permissions:
   id-token: write
