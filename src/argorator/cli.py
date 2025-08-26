@@ -215,8 +215,6 @@ def build_dynamic_arg_parser(
 			return int
 		elif type_str == 'float':
 			return float
-		elif type_str == 'bool':
-			return lambda x: x.lower() in ('true', '1', 'yes', 'y')
 		else:  # str, string or choice
 			return str
 	
@@ -227,29 +225,65 @@ def build_dynamic_arg_parser(
 		help_text = annotation.get('help', '')
 		choices = annotation.get('choices')
 		default_value = annotation.get('default')
+		alias = annotation.get('alias')
+		
+		# Build argument names
+		arg_names = [f"--{name.lower()}"]
+		if alias:
+			arg_names.insert(0, alias)  # Put alias first
 		
 		kwargs = {
 			'dest': name,
-			'type': get_type_converter(var_type)
 		}
 		
-		# If annotation provides a default, make it optional
-		if default_value is not None:
-			kwargs['default'] = get_type_converter(var_type)(default_value)
-			kwargs['required'] = False
-			if help_text:
-				kwargs['help'] = f"{help_text} (default: {default_value})"
+		# Handle boolean type specially
+		if var_type == 'bool':
+			# Determine default boolean value
+			if default_value is not None:
+				default_bool = default_value.lower() in ('true', '1', 'yes', 'y')
 			else:
-				kwargs['help'] = f"(default: {default_value})"
-		else:
-			kwargs['required'] = True
-			if help_text:
-				kwargs['help'] = help_text
-		
-		if choices:
-			kwargs['choices'] = choices
+				default_bool = False  # Default to False for required booleans
 			
-		parser.add_argument(f"--{name.lower()}", **kwargs)
+			if default_bool:
+				# Default is True, so flag should store_false
+				kwargs['action'] = 'store_false'
+				kwargs['default'] = True
+				if help_text:
+					kwargs['help'] = f"{help_text} (default: true)"
+				else:
+					kwargs['help'] = "(default: true)"
+			else:
+				# Default is False, so flag should store_true
+				kwargs['action'] = 'store_true'
+				kwargs['default'] = False
+				if help_text:
+					kwargs['help'] = f"{help_text} (default: false)"
+				else:
+					kwargs['help'] = "(default: false)"
+			
+			# Boolean flags are never required (they have implicit defaults)
+			kwargs['required'] = False
+		else:
+			# Non-boolean types
+			kwargs['type'] = get_type_converter(var_type)
+			
+			# If annotation provides a default, make it optional
+			if default_value is not None:
+				kwargs['default'] = get_type_converter(var_type)(default_value)
+				kwargs['required'] = False
+				if help_text:
+					kwargs['help'] = f"{help_text} (default: {default_value})"
+				else:
+					kwargs['help'] = f"(default: {default_value})"
+			else:
+				kwargs['required'] = True
+				if help_text:
+					kwargs['help'] = help_text
+			
+			if choices:
+				kwargs['choices'] = choices
+		
+		parser.add_argument(*arg_names, **kwargs)
 		
 	for name, value in env_vars.items():
 		annotation = annotations.get(name, {})
@@ -257,32 +291,72 @@ def build_dynamic_arg_parser(
 		help_text = annotation.get('help', '')
 		choices = annotation.get('choices')
 		annotation_default = annotation.get('default')
+		alias = annotation.get('alias')
+		
+		# Build argument names
+		arg_names = [f"--{name.lower()}"]
+		if alias:
+			arg_names.insert(0, alias)  # Put alias first
 		
 		# Use annotation default if provided, otherwise use env value
 		default_value = annotation_default if annotation_default is not None else value
 		
-		# Build help text with default value info
-		help_parts = []
-		if help_text:
-			help_parts.append(help_text)
-		if annotation_default is not None:
-			help_parts.append(f"(default: {annotation_default})")
-		else:
-			help_parts.append(f"(default from env: {value})")
-		full_help = ' '.join(help_parts)
-		
 		kwargs = {
 			'dest': name,
-			'default': get_type_converter(var_type)(default_value),
 			'required': False,
-			'help': full_help,
-			'type': get_type_converter(var_type)
 		}
 		
-		if choices:
-			kwargs['choices'] = choices
+		# Handle boolean type specially
+		if var_type == 'bool':
+			# Determine default boolean value
+			if annotation_default is not None:
+				default_bool = annotation_default.lower() in ('true', '1', 'yes', 'y')
+			else:
+				default_bool = value.lower() in ('true', '1', 'yes', 'y')
 			
-		parser.add_argument(f"--{name.lower()}", **kwargs)
+			if default_bool:
+				# Default is True, so flag should store_false
+				kwargs['action'] = 'store_false'
+				kwargs['default'] = True
+				help_parts = []
+				if help_text:
+					help_parts.append(help_text)
+				if annotation_default is not None:
+					help_parts.append("(default: true)")
+				else:
+					help_parts.append(f"(default from env: {value})")
+				kwargs['help'] = ' '.join(help_parts)
+			else:
+				# Default is False, so flag should store_true
+				kwargs['action'] = 'store_true'
+				kwargs['default'] = False
+				help_parts = []
+				if help_text:
+					help_parts.append(help_text)
+				if annotation_default is not None:
+					help_parts.append("(default: false)")
+				else:
+					help_parts.append(f"(default from env: {value})")
+				kwargs['help'] = ' '.join(help_parts)
+		else:
+			# Non-boolean types
+			kwargs['type'] = get_type_converter(var_type)
+			kwargs['default'] = get_type_converter(var_type)(default_value)
+			
+			# Build help text with default value info
+			help_parts = []
+			if help_text:
+				help_parts.append(help_text)
+			if annotation_default is not None:
+				help_parts.append(f"(default: {annotation_default})")
+			else:
+				help_parts.append(f"(default from env: {value})")
+			kwargs['help'] = ' '.join(help_parts)
+			
+			if choices:
+				kwargs['choices'] = choices
+		
+		parser.add_argument(*arg_names, **kwargs)
 		
 	# Positional arguments
 	for index in sorted(positional_indices):
