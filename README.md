@@ -21,14 +21,25 @@ A Python-based CLI program that takes shell scripts as input, parses their varia
 
 ## Installation
 
-Make the script executable:
+### From Source (Recommended for Development)
+
+1. Clone or download the repository
+2. Install using pip:
 ```bash
-chmod +x argorator.py
+pip install -e .
 ```
 
-Optionally create a symlink for easier usage:
+3. Or install from PyPI (when published):
 ```bash
-ln -s /path/to/argorator.py /usr/local/bin/argorator
+pip install argorator
+```
+
+### Manual Installation
+
+If you prefer not to install via pip, you can use the entry point script directly:
+```bash
+chmod +x argorator_entry_point.py
+# Use ./argorator_entry_point.py instead of argorator command
 ```
 
 ## Usage Examples
@@ -68,7 +79,9 @@ argorator export example.sh --NAME "John" --AGE "25" "first_arg"
 ### Shebang Usage
 Create a script with argorator as shebang:
 ```bash
-#!/path/to/argorator.py
+#!/usr/local/bin/argorator
+# or if using the entry point script directly:
+#!/path/to/argorator_entry_point.py
 echo "Processing: $FILENAME"
 echo "Mode: $MODE"
 ```
@@ -99,9 +112,27 @@ chmod +x script.sh
 - **Environment variables**: Variables that exist in the current environment
 - **Local definitions**: Variables defined within the script are detected and not made into arguments
 
+## Package Structure
+
+The project is organized as a proper Python package:
+
+```
+argorator/
+├── argorator/
+│   ├── __init__.py      # Package initialization
+│   └── main.py          # Main functionality (refactored to use functions)
+├── pyproject.toml       # Modern Python packaging configuration
+├── setup.py             # Backward compatibility setup
+├── MANIFEST.in          # Additional files to include in package
+├── README.md            # This file
+└── LICENSE              # MIT License
+```
+
 ## Examples
 
 See the included test scripts:
 - `test_script1.sh` - Complex example with various variable types
-- `test_script2.sh` - Simple example
-- `test_script3.sh` - Shebang usage example
+- `test_script2.sh` - Simple example  
+- `test_script3.sh` - Shebang usage example (legacy)
+- `test_script_package.sh` - Package-based shebang example
+- `argorator_entry_point.py` - Standalone entry point for manual installation
