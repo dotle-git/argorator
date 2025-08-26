@@ -18,6 +18,52 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple
 SPECIAL_VARS: Set[str] = {"@", "*", "#", "?", "$", "!", "0"}
 
 
+def parse_arg_annotations(script_text: str) -> Dict[str, Dict[str, str]]:
+	"""Parse comment-based annotations for argument metadata.
+	
+	Supports the following comment formats:
+	- # @arg VAR_NAME: type - description
+	- # @arg VAR_NAME: type[choices] - description
+	- # @arg VAR_NAME - description (type defaults to string)
+	
+	Args:
+		script_text: The full script content
+		
+	Returns:
+		Dict mapping variable names to metadata dicts with 'type', 'help', and optionally 'choices'
+	"""
+	annotations = {}
+	# Match @arg annotations with optional type and description
+	pattern = re.compile(
+		r'^\s*#\s*@arg\s+'
+		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name
+		r'(?:\s*:\s*'  # Optional type section
+		r'(bool|int|float|string|choice)'  # Type
+		r'(?:\[([^\]]+)\])?'  # Optional choices for choice type
+		r')?'
+		r'(?:\s*-\s*(.+))?',  # Optional description
+		re.MULTILINE
+	)
+	
+	for match in pattern.finditer(script_text):
+		var_name = match.group(1)
+		var_type = match.group(2) or 'string'
+		choices = match.group(3)
+		description = match.group(4) or ''
+		
+		metadata = {
+			'type': var_type,
+			'help': description.strip()
+		}
+		
+		if var_type == 'choice' and choices:
+			metadata['choices'] = [c.strip() for c in choices.split(',')]
+			
+		annotations[var_name] = metadata
+	
+	return annotations
+
+
 def read_text_file(file_path: Path) -> str:
 	"""Read and return the file's content as UTF-8 text.
 
@@ -120,21 +166,83 @@ def determine_variables(script_text: str) -> Tuple[Set[str], Dict[str, Optional[
 	return defined_vars, undefined_vars, env_vars
 
 
-def build_dynamic_arg_parser(undefined_vars: Sequence[str], env_vars: Dict[str, str], positional_indices: Set[int], varargs: bool) -> argparse.ArgumentParser:
+def build_dynamic_arg_parser(
+	undefined_vars: Sequence[str], 
+	env_vars: Dict[str, str], 
+	positional_indices: Set[int], 
+	varargs: bool,
+	annotations: Optional[Dict[str, Dict[str, str]]] = None
+) -> argparse.ArgumentParser:
 	"""Construct an argparse parser for script-specific variables and positionals.
 
 	- Undefined variables become required options: --var (lowercase)
 	- Env-backed variables become optional with defaults from the environment
 	- Numeric positional references ($1, $2, ...) become positionals ARG1, ARG2, ...
 	- Varargs ($@ or $*) collects remaining args via an ARGS positional with nargs='*'
+	- Annotations from comments provide type information and help text
 	"""
+	if annotations is None:
+		annotations = {}
+	
 	parser = argparse.ArgumentParser(add_help=True)
+	
+	# Helper function to get type converter
+	def get_type_converter(type_str: str):
+		if type_str == 'int':
+			return int
+		elif type_str == 'float':
+			return float
+		elif type_str == 'bool':
+			return lambda x: x.lower() in ('true', '1', 'yes', 'y')
+		else:  # string or choice
+			return str
+	
 	# Options for variables
 	for name in undefined_vars:
-		parser.add_argument(f"--{name.lower()}", dest=name, required=True)
+		annotation = annotations.get(name, {})
+		var_type = annotation.get('type', 'string')
+		help_text = annotation.get('help', '')
+		choices = annotation.get('choices')
+		
+		kwargs = {
+			'dest': name,
+			'required': True,
+			'type': get_type_converter(var_type)
+		}
+		
+		if help_text:
+			kwargs['help'] = help_text
+		if choices:
+			kwargs['choices'] = choices
+			
+		parser.add_argument(f"--{name.lower()}", **kwargs)
+		
 	for name, value in env_vars.items():
-		help_text = f"(default from env: {value})"
-		parser.add_argument(f"--{name.lower()}", dest=name, default=value, required=False, help=help_text)
+		annotation = annotations.get(name, {})
+		var_type = annotation.get('type', 'string')
+		help_text = annotation.get('help', '')
+		choices = annotation.get('choices')
+		
+		# Build help text with default value info
+		help_parts = []
+		if help_text:
+			help_parts.append(help_text)
+		help_parts.append(f"(default from env: {value})")
+		full_help = ' '.join(help_parts)
+		
+		kwargs = {
+			'dest': name,
+			'default': value,
+			'required': False,
+			'help': full_help,
+			'type': get_type_converter(var_type)
+		}
+		
+		if choices:
+			kwargs['choices'] = choices
+			
+		parser.add_argument(f"--{name.lower()}", **kwargs)
+		
 	# Positional arguments
 	for index in sorted(positional_indices):
 		parser.add_argument(f"ARG{index}")
@@ -249,7 +357,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 	positional_indices, varargs = parse_positional_usages(script_text)
 	# Build dynamic parser
 	undefined_names = sorted(undefined_vars_map.keys())
-	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs)
+	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs, undefined_vars_map)
 	try:
 		dyn_ns = dyn_parser.parse_args(rest_args)
 	except SystemExit as exc:
