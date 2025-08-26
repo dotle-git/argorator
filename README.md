@@ -71,6 +71,16 @@ echo "✅ Deployment complete!"
 
 ```bash
 $ chmod +x deploy-service.sh
+$ ./deploy-service.sh --help
+usage: deploy-service.sh [-h] --service_name SERVICE_NAME --environment ENVIRONMENT [--version VERSION] [--dry_run DRY_RUN]
+
+options:
+  -h, --help            show this help message and exit
+  --service_name SERVICE_NAME
+  --environment ENVIRONMENT
+  --version VERSION     (default from env: latest)
+  --dry_run DRY_RUN
+
 $ ./deploy-service.sh --service-name api --environment staging --dry-run true
 🚀 Deploying api to staging
 📦 Version: latest
@@ -108,6 +118,15 @@ echo "Custom: $CUSTOM_VAR"
 ```
 
 ```bash
+$ argorator show-env.sh --help
+usage: argorator show-env.sh [-h] --custom_var CUSTOM_VAR [--home HOME] [--user USER]
+
+options:
+  -h, --help            show this help message and exit
+  --custom_var CUSTOM_VAR
+  --home HOME           (default from env: /home/yourusername)
+  --user USER           (default from env: yourusername)
+
 $ argorator show-env.sh --custom-var "test"
 Home: /home/yourusername
 User: yourusername
@@ -126,6 +145,18 @@ echo "Compression: ${COMPRESSION:-gzip}"
 ```
 
 ```bash
+$ argorator backup.sh --help
+usage: argorator backup.sh [-h] [--compression COMPRESSION] ARG1 ARG2
+
+positional arguments:
+  ARG1
+  ARG2
+
+options:
+  -h, --help            show this help message and exit
+  --compression COMPRESSION
+                        (default from env: gzip)
+
 $ argorator backup.sh /data /backups --compression bzip2
 Backing up /data to /backups
 Compression: bzip2
