@@ -1,6 +1,7 @@
 import pytest
 from pathlib import Path
 from argorator import cli
+from argorator.annotations import parse_arg_annotations
 
 
 def test_parse_basic_google_annotation():
@@ -10,7 +11,7 @@ def test_parse_basic_google_annotation():
     # AGE (int): The user's age
     echo "Hello $NAME, you are $AGE"
     """
-    annotations = cli.parse_arg_annotations(script)
+    annotations = parse_arg_annotations(script)
     
     assert "NAME" in annotations
     assert annotations["NAME"]["help"] == "The user's name"
@@ -28,7 +29,7 @@ def test_parse_google_with_defaults():
     # HOST (str): Server host. Default: localhost
     # DEBUG (bool): Enable debug mode. Default: false
     """
-    annotations = cli.parse_arg_annotations(script)
+    annotations = parse_arg_annotations(script)
     
     assert annotations["PORT"]["type"] == "int"
     assert annotations["PORT"]["default"] == "8080"
@@ -47,7 +48,7 @@ def test_parse_google_choice_annotations():
     # ENV (choice[dev, staging, prod]): Deployment environment
     # COLOR (choice[red, green, blue]): Favorite color. Default: blue
     """
-    annotations = cli.parse_arg_annotations(script)
+    annotations = parse_arg_annotations(script)
     
     assert annotations["ENV"]["type"] == "choice"
     assert annotations["ENV"]["choices"] == ["dev", "staging", "prod"]
@@ -67,7 +68,7 @@ def test_parse_google_all_types():
     # ENABLED (bool): Boolean parameter
     # MODE (choice[fast, slow]): Choice parameter
     """
-    annotations = cli.parse_arg_annotations(script)
+    annotations = parse_arg_annotations(script)
     
     assert annotations["NAME"]["type"] == "str"
     assert annotations["COUNT"]["type"] == "int"
@@ -138,7 +139,7 @@ def test_case_insensitive_variable_names():
     # SERVICE_PORT (int): Port number
     # Service_Type (choice[web, api]): Type of service
     """
-    annotations = cli.parse_arg_annotations(script)
+    annotations = parse_arg_annotations(script)
     
     # Parser should find them with uppercase names
     assert "SERVICE_NAME" in annotations or "service_name" in annotations

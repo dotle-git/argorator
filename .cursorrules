@@ -9,7 +9,8 @@ Argorator is a Python tool that transforms shell scripts into fully-featured com
 .
 ├── src/argorator/          # Main source code
 │   ├── __init__.py
-│   └── cli.py             # Core CLI implementation
+│   ├── cli.py             # Core CLI implementation
+│   └── annotations.py     # Google-style annotation parser
 ├── tests/                  # Test files
 │   ├── test_cli.py
 │   ├── test_annotations.py
@@ -17,28 +18,39 @@ Argorator is a Python tool that transforms shell scripts into fully-featured com
 │   └── test_edge_cases.py
 ├── examples/               # Example scripts demonstrating features
 │   ├── google_style_annotations.sh
-│   └── google_simple.sh
+│   ├── google_simple.sh
+│   └── boolean_flags_example.sh
 ├── docs/                   # Documentation
 │   ├── README.md          # Main documentation index
 │   └── features/          # Feature-specific documentation
-│       ├── README.md      # Features index
-│       └── google_style_annotations.md  # Google-style annotations guide
+│       └── google_style_annotations.md  # Google-style annotations guide (v0.3.0)
 ├── README.md              # Project README
-├── pyproject.toml         # Project configuration
+├── pyproject.toml         # Project configuration (version 0.3.0)
 └── LICENSE               # MIT License
 ```
 
-## Key Features
+## Key Features (v0.3.0)
 
 ### Google-Style Annotations
 Scripts can use Google docstring-style comments to specify type and help information:
 
 ```bash
 # VARIABLE_NAME (type): Description. Default: default_value
+# VARIABLE_NAME (type) [alias: -x]: Description with alias
 # ENVIRONMENT (choice[dev, staging, prod]): Target environment
 ```
 
 Supported types: str, int, float, bool, choice[...]
+
+### Boolean Flags
+- Boolean arguments use store_true/store_false actions
+- No value required: use `-v` instead of `--verbose true`
+- Default false: flag presence sets to true
+- Default true: flag presence sets to false
+
+### Parameter Aliases
+- Short aliases can be specified: `[alias: -x]`
+- Aliases appear first in help: `-v, --verbose`
 
 ### Core Functionality
 - Automatic detection of undefined variables in shell scripts
@@ -64,10 +76,12 @@ Supported types: str, int, float, bool, choice[...]
 - Each feature gets its own markdown file
 - Examples should be practical and runnable
 - Include both simple and complex examples
+- Version information should be included for new features
 
 ## Important Implementation Details
-- The `parse_arg_annotations()` function extracts Google-style comments
-- Type conversion happens in `build_dynamic_arg_parser()`
+- The `parse_arg_annotations()` function in `annotations.py` extracts Google-style comments
+- Type conversion happens in `build_dynamic_arg_parser()` in `cli.py`
 - Boolean values are converted to lowercase "true"/"false" for shell compatibility
 - Annotations with defaults make arguments optional
 - Choice validation is handled by argparse
+- Boolean flags use argparse actions (store_true/store_false) instead of type conversion

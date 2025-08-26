@@ -1,6 +1,7 @@
 import pytest
 from pathlib import Path
 from argorator import cli
+from argorator.annotations import parse_arg_annotations
 
 
 def test_parse_basic_param_annotation():
@@ -10,7 +11,7 @@ def test_parse_basic_param_annotation():
     # :param AGE: The user's age
     echo "Hello $NAME, you are $AGE"
     """
-    annotations = cli.parse_arg_annotations(script)
+    annotations = parse_arg_annotations(script)
     
     assert "NAME" in annotations
     assert annotations["NAME"]["help"] == "The user's name"
@@ -31,7 +32,7 @@ def test_parse_type_annotations():
     # :param ENABLED: Enable feature
     # :type ENABLED: bool
     """
-    annotations = cli.parse_arg_annotations(script)
+    annotations = parse_arg_annotations(script)
     
     assert annotations["COUNT"]["type"] == "int"
     assert annotations["PRICE"]["type"] == "float"
@@ -46,7 +47,7 @@ def test_parse_inline_type_annotations():
     # :param bool ENABLED: Enable feature
     # :param str NAME: User name
     """
-    annotations = cli.parse_arg_annotations(script)
+    annotations = parse_arg_annotations(script)
     
     assert annotations["COUNT"]["type"] == "int"
     assert annotations["COUNT"]["help"] == "Number of items"
@@ -71,7 +72,7 @@ def test_parse_choice_annotations():
     # :param COLOR: Favorite color
     # :choices COLOR: red, green, blue
     """
-    annotations = cli.parse_arg_annotations(script)
+    annotations = parse_arg_annotations(script)
     
     assert annotations["ENV"]["type"] == "choice"
     assert annotations["ENV"]["choices"] == ["dev", "staging", "prod"]
