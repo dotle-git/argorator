@@ -30,11 +30,22 @@ class ArgumentAnnotation(BaseModel):
     @field_validator('alias')
     @classmethod
     def validate_alias(cls, v: Optional[str]) -> Optional[str]:
-        """Validate that alias starts with a single dash."""
-        if v is not None and not v.startswith('-'):
-            # Prepend dash if not present
-            return f'-{v}'
-        return v
+        """Validate short alias formatting and reserved names.
+
+        Rules:
+        - If provided without a dash, prepend a single '-'
+        - Must be exactly a single-dash followed by one non-whitespace character
+        - '-h' is reserved for help and cannot be used
+        """
+        if v is None:
+            return v
+        alias = v if v.startswith('-') else f'-{v}'
+        # Disallow whitespace and multi-character long-style forms
+        if len(alias) != 2 or not alias.startswith('-') or alias[1].isspace():
+            raise ValueError("alias must be a short option like '-v'")
+        if alias == '-h':
+            raise ValueError("alias '-h' is reserved for help")
+        return alias
     
     @field_validator('choices')
     @classmethod

@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Short alias validation and safeguards
+  - Enforce single-character short aliases (e.g., `-v`, `-p`)
+  - Automatically prepend `-` if omitted in annotations
+  - Reject reserved `-h` alias (kept for help)
+
 ### Fixed
 - Set parser program name to the script name instead of "cli.py" in help output
 

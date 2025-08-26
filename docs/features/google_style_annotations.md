@@ -80,6 +80,12 @@ Add short aliases for convenience:
 # script.sh --service api --port 9000 --verbose
 ```
 
+Rules and caveats:
+- Short aliases are single-character options like `-s`, `-p`, `-v`.
+- If you write `[alias: v]`, Argorator normalizes it to `-v`.
+- The `-h` alias is reserved for help and cannot be used.
+- Duplicate short aliases across different variables are rejected.
+
 ### Choice Parameters
 
 ```bash

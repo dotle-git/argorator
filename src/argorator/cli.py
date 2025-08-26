@@ -166,6 +166,17 @@ def build_dynamic_arg_parser(
 	
 	parser = ConflictAwareArgumentParser(add_help=True, prog=script_name)
 	
+	# Pre-check for duplicate short aliases across all variables we will add
+	all_names: List[str] = list(undefined_vars) + list(env_vars.keys())
+	alias_to_name: Dict[str, str] = {}
+	for name in all_names:
+		annotation = annotations.get(name)
+		if annotation and annotation.alias:
+			alias = annotation.alias
+			if alias in alias_to_name:
+				raise ValueError(f"duplicate short alias '{alias}' for variables {alias_to_name[alias]} and {name}")
+			alias_to_name[alias] = name
+	
 	# Helper function to get type converter
 	def get_type_converter(type_str: str):
 		if type_str == 'int':

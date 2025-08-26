@@ -159,6 +159,37 @@ def test_google_annotations_with_argparse():
     assert args.DEBUG is True
 
 
+def test_short_alias_parsing_and_usage():
+    """Short aliases are parsed, normalized, and usable for all types."""
+    annotations = {
+        "SERVICE": ArgumentAnnotation(type="str", help="Service", alias="s"),
+        "PORT": ArgumentAnnotation(type="int", help="Port", default="8080", alias="-p"),
+        "VERBOSE": ArgumentAnnotation(type="bool", help="Verbose", default="false", alias="v"),
+    }
+    parser = cli.build_dynamic_arg_parser(["SERVICE", "PORT", "VERBOSE"], {}, set(), False, annotations)
+    # Use only short options
+    args = parser.parse_args(["-s", "api", "-p", "9001", "-v"])
+    assert args.SERVICE == "api"
+    assert args.PORT == 9001
+    assert args.VERBOSE is True
+
+
+def test_duplicate_short_alias_conflict_raises():
+    """Duplicate short aliases across variables should raise a clear error."""
+    annotations = {
+        "HOST": ArgumentAnnotation(type="str", alias="-p"),
+        "PORT": ArgumentAnnotation(type="int", alias="p"),
+    }
+    with pytest.raises(ValueError):
+        cli.build_dynamic_arg_parser(["HOST", "PORT"], {}, set(), False, annotations)
+
+
+def test_reserved_h_alias_rejected_in_model():
+    """'-h' must be reserved for help and rejected by the model."""
+    with pytest.raises(ValueError):
+        ArgumentAnnotation(type="str", alias="-h")
+
+
 def test_mixed_required_optional():
     """Test mix of required and optional parameters."""
     annotations = {
