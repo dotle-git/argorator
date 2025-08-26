@@ -115,33 +115,44 @@ def run_script_with_args(shell_cmd: List[str], script_text: str, positional_args
 
 def build_top_level_parser() -> argparse.ArgumentParser:
 	parser = argparse.ArgumentParser(prog="argorator", description="Execute or compile shell scripts with CLI-exposed variables")
-	parser.add_argument("command", nargs="?", help="Mode: 'compile' or 'export'; omit to run")
-	parser.add_argument("script", nargs="?", help="Path to the shell script")
-	parser.add_argument("rest", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
+	subparsers = parser.add_subparsers(dest="subcmd")
+	# run
+	run_parser = subparsers.add_parser("run", help="Run script (default)")
+	run_parser.add_argument("script", help="Path to the shell script")
+	# compile
+	compile_parser = subparsers.add_parser("compile", help="Print modified script")
+	compile_parser.add_argument("script", help="Path to the shell script")
+	# export
+	export_parser = subparsers.add_parser("export", help="Print export lines")
+	export_parser.add_argument("script", help="Path to the shell script")
 	return parser
+
+
+def normalize_argv(argv: List[str]) -> List[str]:
+	if not argv or argv[0] in ("-h", "--help"):
+		return argv
+	if argv[0] not in {"run", "compile", "export"}:
+		return ["run"] + argv
+	return argv
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
 	argv = list(argv) if argv is not None else sys.argv[1:]
-	# Help handling
-	if not argv or argv[0] in ("-h", "--help"):
-		top = build_top_level_parser()
-		top.print_help()
+	argv = normalize_argv(argv)
+	parser = build_top_level_parser()
+	# Show help if requested without subcommand
+	if not argv:
+		parser.print_help()
 		return 0
-	# Manual pre-parse for subcommand vs script
-	command = "run"
-	script_arg: Optional[str] = None
-	rest_args: List[str] = []
-	if argv and argv[0] in {"compile", "export"}:
-		command = argv[0]
-		if len(argv) < 2:
-			print("error: script path is required", file=sys.stderr)
-			return 2
-		script_arg = argv[1]
-		rest_args = argv[2:]
-	else:
-		script_arg = argv[0]
-		rest_args = argv[1:]
+	ns, unknown = parser.parse_known_args(argv)
+	if argv and argv[0] in ("-h", "--help"):
+		parser.print_help()
+		return 0
+	command = ns.subcmd or "run"
+	script_arg: Optional[str] = getattr(ns, "script", None)
+	if script_arg is None:
+		print("error: script path is required", file=sys.stderr)
+		return 2
 	# Validate script
 	script_path = Path(script_arg)
 	if not script_path.exists():
@@ -155,7 +166,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 	undefined_names = sorted(undefined_vars_map.keys())
 	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs)
 	try:
-		dyn_ns = dyn_parser.parse_args(rest_args)
+		dyn_ns = dyn_parser.parse_args(unknown)
 	except SystemExit as exc:
 		return int(exc.code)
 	# Collect resolved variable assignments
