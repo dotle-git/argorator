@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2024-12-28
+
 ### Added
 - **Argument groups and mutually exclusive groups support**
   - Group related arguments together for better help organization
@@ -20,13 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Natural language syntax**: `# group VAR1, VAR2 as GroupName` and `# one of VAR1, VAR2 as GroupName`
   - Auto-naming: Groups without explicit names get auto-generated names (Group1, Group2, etc.)
   - Validates that variables cannot be in multiple groups
-
-### Changed
-- Simplified group syntax - removed old bracket-based group annotations for cleaner, more intuitive natural language approach
 - GitHub Pages documentation site with Jekyll
   - Main landing page with full project overview
   - Organized documentation structure in docs/ folder
   - Google-style annotations feature documentation
+
+### Changed
+- Simplified group syntax - removed old bracket-based group annotations for cleaner, more intuitive natural language approach
 
 ### Fixed
 - Tests badge in README now points to correct repository (dotle-git/argorator)
