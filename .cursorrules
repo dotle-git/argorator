@@ -25,8 +25,56 @@ Argorator is a Python tool that transforms shell scripts into fully-featured com
 │   └── features/          # Feature-specific documentation
 │       └── google_style_annotations.md  # Google-style annotations guide (v0.3.0)
 ├── README.md              # Project README
+├── CHANGELOG.md           # Version history (Keep a Changelog format)
 ├── pyproject.toml         # Project configuration (version 0.3.0)
 └── LICENSE               # MIT License
+```
+
+## Version Management and Changelog
+
+### Version Bumping Rules
+Follow [Semantic Versioning](https://semver.org/):
+- **MAJOR** (x.0.0): Breaking changes to CLI interface or script compatibility
+- **MINOR** (0.x.0): New features, backwards compatible
+- **PATCH** (0.0.x): Bug fixes, documentation updates
+
+### When Making Changes
+1. **Update CHANGELOG.md FIRST** under `[Unreleased]` section
+2. When ready to release, update version in `pyproject.toml`
+3. Move `[Unreleased]` items to new version section with date
+4. Update version references in documentation
+
+### Changelog Format
+```markdown
+## [Unreleased]
+
+### Added
+- New features
+
+### Changed
+- Changes to existing functionality
+
+### Fixed
+- Bug fixes
+
+### Deprecated
+- Features to be removed
+
+### Removed
+- Removed features
+
+### Security
+- Security fixes
+```
+
+### Example Workflow
+```bash
+# 1. Make changes and update CHANGELOG.md under [Unreleased]
+# 2. When ready to release:
+#    - Update version in pyproject.toml
+#    - Update CHANGELOG.md with version and date
+#    - Update docs with version info where relevant
+# 3. Commit with message like "Release v0.3.0"
 ```
 
 ## Key Features (v0.3.0)
