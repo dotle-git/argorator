@@ -232,9 +232,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		command = "run"
 		script_arg = in_ns.script
 		rest_args = list(in_ns.rest or [])
-	# Validate script
-	script_path = Path(script_arg)
-	if not script_path.exists():
+	# Validate and normalize script path
+	script_path = Path(script_arg).expanduser()
+	try:
+		script_path = script_path.resolve(strict=False)
+	except Exception:
+		# Fallback to the provided path if resolution fails (e.g., permissions)
+		pass
+	if not script_path.exists() or not script_path.is_file():
 		print(f"error: script not found: {script_path}", file=sys.stderr)
 		return 2
 	script_text = read_text_file(script_path)
