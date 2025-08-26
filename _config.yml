@@ -1,0 +1,80 @@
+# Site settings
+title: Argorator
+description: >-
+  Transform any shell script into a fully-featured command-line tool with zero effort.
+  Argorator automatically converts your shell scripts' variables and positional arguments 
+  into a proper CLI interface with --help, argument validation, and type conversion.
+
+baseurl: "/argorator" # the subpath of your site, e.g. /blog
+url: "https://dotle.github.io" # the base hostname & protocol for your site
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+theme: minima
+
+# Enable syntax highlighting
+kramdown:
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    block:
+      line_numbers: true
+
+# Plugins
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
+# Navigation menu
+header_pages:
+  - index.md
+  - docs/README.md
+  - docs/features/google_style_annotations.md
+  - CHANGELOG.md
+
+# GitHub repository info
+github_username: dotle
+repository: dotle/argorator
+
+# SEO settings
+author: Argorator Team
+twitter:
+  username: 
+  card: summary
+
+# Collections
+collections:
+  features:
+    output: true
+    permalink: /:collection/:name/
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: "page"
+  - scope:
+      path: "docs"
+      type: "pages"
+    values:
+      layout: "page"
+  - scope:
+      path: ""
+      type: "features"
+    values:
+      layout: "page"
+
+# Exclude files
+exclude:
+  - src/
+  - tests/
+  - .git/
+  - .github/
+  - .gitignore
+  - .cursorrules
+  - pyproject.toml
+  - sample.sh
+  - LICENSE

@@ -1,3 +1,9 @@
+---
+layout: page
+title: Changelog
+permalink: /changelog/
+---
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -6,6 +12,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Added
+- GitHub Pages documentation site with Jekyll
+  - Main landing page with full project overview
+  - Organized documentation structure in docs/ folder
+  - Google-style annotations feature documentation
+  - Automated deployment via GitHub Actions
+  - Local development setup with Gemfile
+  - Modern Minima theme with syntax highlighting
 
 ## [0.3.0] - 2024-12-19
 
