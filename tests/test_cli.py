@@ -85,12 +85,11 @@ echo "Name: $NAME"
 """
 	script = write_temp_script(tmp_path, script_content)
 	
-	# Try to run with --help and capture output
-	with pytest.raises(SystemExit) as exc_info:
-		cli.main([str(script), "--help"])
+	# Run with --help and capture output
+	rc = cli.main([str(script), "--help"])
 	
 	# Check that exit code is 0 for help
-	assert exc_info.value.code == 0
+	assert rc == 0
 	
 	# Capture the printed output
 	captured = capsys.readouterr()
