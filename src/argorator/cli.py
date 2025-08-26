@@ -128,7 +128,8 @@ def build_dynamic_arg_parser(
 	env_vars: Dict[str, str], 
 	positional_indices: Set[int], 
 	varargs: bool,
-	annotations: Optional[Dict[str, ArgumentAnnotation]] = None
+	annotations: Optional[Dict[str, ArgumentAnnotation]] = None,
+	script_name: Optional[str] = None
 ) -> argparse.ArgumentParser:
 	"""Construct an argparse parser for script-specific variables and positionals.
 
@@ -163,7 +164,7 @@ def build_dynamic_arg_parser(
 				help_text = help_text + "\n".join(warning_lines)
 			return help_text
 	
-	parser = ConflictAwareArgumentParser(add_help=True)
+	parser = ConflictAwareArgumentParser(add_help=True, prog=script_name)
 	
 	# Helper function to get type converter
 	def get_type_converter(type_str: str):
@@ -416,7 +417,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 	annotations = parse_arg_annotations(script_text)
 	# Build dynamic parser
 	undefined_names = sorted(undefined_vars_map.keys())
-	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs, annotations)
+	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs, annotations, script_path.name)
 	try:
 		dyn_ns = dyn_parser.parse_args(rest_args)
 	except SystemExit as exc:

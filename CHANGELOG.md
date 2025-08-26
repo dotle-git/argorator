@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Set parser program name to the script name instead of "cli.py" in help output
+
 ## [0.3.1] - 2025-08-26
 
 ### Fixed
