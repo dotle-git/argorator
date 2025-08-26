@@ -60,6 +60,57 @@ def test_parse_google_choice_annotations():
     assert annotations["COLOR"].default == "blue"
 
 
+def test_parse_lowercase_parameter_names():
+    """Test that lowercase parameter names in annotations are normalized to uppercase."""
+    script = """
+    # name (str): The user's name. Default: John
+    # age (int): The user's age  
+    # debug_mode (bool): Enable debug mode. Default: false
+    # env_type (choice[dev, prod]): Environment type
+    echo "Hello $NAME, you are $AGE, debug=$DEBUG_MODE, env=$ENV_TYPE"
+    """
+    annotations = parse_arg_annotations(script)
+    
+    # All parameter names should be normalized to uppercase
+    assert "NAME" in annotations
+    assert "AGE" in annotations  
+    assert "DEBUG_MODE" in annotations
+    assert "ENV_TYPE" in annotations
+    
+    # Verify the annotation data is preserved correctly
+    assert annotations["NAME"].type == "str"
+    assert annotations["NAME"].default == "John"
+    assert annotations["NAME"].help == "The user's name"
+    
+    assert annotations["AGE"].type == "int"
+    assert annotations["AGE"].help == "The user's age"
+    
+    assert annotations["DEBUG_MODE"].type == "bool"
+    assert annotations["DEBUG_MODE"].default == "false"
+    
+    assert annotations["ENV_TYPE"].type == "choice"
+    assert annotations["ENV_TYPE"].choices == ["dev", "prod"]
+
+
+def test_parse_mixed_case_parameter_names():
+    """Test that mixed case parameter names work correctly."""
+    script = """
+    # User_Name (str): Mixed case name
+    # PORT_number (int): Port number
+    # enableDebug (bool): Debug flag
+    """
+    annotations = parse_arg_annotations(script)
+    
+    # All should be normalized to uppercase
+    assert "USER_NAME" in annotations
+    assert "PORT_NUMBER" in annotations
+    assert "ENABLEDEBUG" in annotations
+    
+    assert annotations["USER_NAME"].help == "Mixed case name"
+    assert annotations["PORT_NUMBER"].type == "int"
+    assert annotations["ENABLEDEBUG"].type == "bool"
+
+
 def test_parse_google_all_types():
     """Test parsing all supported types."""
     script = """

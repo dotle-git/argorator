@@ -10,6 +10,7 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 	
 	Supports the Google docstring-style format:
 	- # VAR_NAME (type): Description. Default: default_value
+	- # var_name (type): Description (parameter names are normalized to uppercase)
 	- # VAR_NAME: Description (type defaults to str)
 	- # VAR_NAME (type) [alias: -x]: Description
 	
@@ -44,7 +45,7 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 	)
 	
 	for match in pattern.finditer(script_text):
-		var_name = match.group(1)
+		var_name = match.group(1).upper()  # Normalize to uppercase for shell variables
 		var_type = match.group(2) or 'str'
 		choices_str = match.group(3)
 		alias = match.group(4)

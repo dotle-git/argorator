@@ -99,3 +99,123 @@ echo "Name: $NAME"
 	assert "(default from env: testuser)" in captured.out
 	# NAME should be required and not have a default
 	assert "--name" in captured.out
+
+
+def test_env_annotation_default_conflicts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
+	"""Test handling of conflicts between environment defaults and annotation defaults."""
+	# Set environment variable that conflicts with annotation default
+	monkeypatch.setenv("PORT", "3000")  # Env default
+	monkeypatch.setenv("HOST", "localhost")  # This will match annotation default (no conflict)
+	
+	# Script with annotations that have conflicting and non-conflicting defaults
+	script_content = """#!/bin/bash
+# PORT (int): Server port. Default: 8080
+# HOST (str): Server host. Default: localhost  
+# NAME (str): User name
+echo "Server running on $HOST:$PORT for user $NAME"
+"""
+	script = write_temp_script(tmp_path, script_content)
+	
+	# Run with --help to see conflict warning
+	rc = cli.main([str(script), "--help"])
+	assert rc == 0
+	
+	captured = capsys.readouterr()
+	
+	# Should show conflict warning for PORT but not HOST
+	assert "WARNING: Default value conflicts detected:" in captured.out
+	assert "PORT: environment='3000' vs annotation='8080' (using annotation)" in captured.out
+	# HOST should not appear in conflicts since values match
+	assert "HOST: environment=" not in captured.out
+	
+	# Should show that annotation default is being used with override notice
+	assert "(default: 8080, overriding env)" in captured.out
+	assert "(default: localhost)" in captured.out  # No override notice for HOST
+
+
+def test_env_annotation_conflict_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
+	"""Test that annotation defaults override environment values in execution."""
+	monkeypatch.setenv("DEBUG", "true")  # Env has true
+	
+	# Script with annotation that has conflicting default
+	script_content = """#!/bin/bash
+# DEBUG (bool): Enable debug mode. Default: false
+echo "Debug mode: $DEBUG"
+"""
+	script = write_temp_script(tmp_path, script_content)
+	
+	# Use export command to verify the value being set
+	rc = cli.main(["export", str(script)])
+	assert rc == 0
+	
+	captured = capsys.readouterr()
+	# Should export DEBUG=false because annotation default overrides env
+	assert "export DEBUG=false" in captured.out
+
+
+def test_no_conflict_when_no_annotation_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
+	"""Test that no conflict is detected when annotation has no default."""
+	monkeypatch.setenv("PORT", "3000")
+	
+	# Script with annotation but no default value
+	script_content = """#!/bin/bash
+# PORT (int): Server port
+echo "Port: $PORT"
+"""
+	script = write_temp_script(tmp_path, script_content)
+	
+	# Run with --help
+	rc = cli.main([str(script), "--help"])
+	assert rc == 0
+	
+	captured = capsys.readouterr()
+	
+	# No conflict warning should appear
+	assert "WARNING: Default value conflicts detected:" not in captured.out
+	# Should show env default normally
+	assert "(default from env: 3000)" in captured.out
+
+
+def test_multiple_conflicts_in_warning(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
+	"""Test that multiple conflicts are all shown in the warning."""
+	monkeypatch.setenv("PORT", "3000")
+	monkeypatch.setenv("TIMEOUT", "30")
+	monkeypatch.setenv("DEBUG", "true")
+	
+	script_content = """#!/bin/bash
+# PORT (int): Server port. Default: 8080
+# TIMEOUT (int): Request timeout. Default: 60
+# DEBUG (bool): Debug mode. Default: false
+# HOST (str): Server host. Default: localhost
+echo "Server: $HOST:$PORT, timeout: $TIMEOUT, debug: $DEBUG"
+"""
+	script = write_temp_script(tmp_path, script_content)
+	
+	# Run with --help
+	rc = cli.main([str(script), "--help"])
+	assert rc == 0
+	
+	captured = capsys.readouterr()
+	
+	# Should show all conflicts
+	assert "WARNING: Default value conflicts detected:" in captured.out
+	assert "PORT: environment='3000' vs annotation='8080' (using annotation)" in captured.out
+	assert "TIMEOUT: environment='30' vs annotation='60' (using annotation)" in captured.out
+	assert "DEBUG: environment='true' vs annotation='false' (using annotation)" in captured.out
+	# HOST has no env var, so no conflict
+	assert "HOST: environment=" not in captured.out
+
+
+def test_lowercase_annotations_work_with_uppercase_vars(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+	"""Test that lowercase parameter names in annotations work with uppercase shell variables."""
+	# Script using lowercase annotation names but uppercase variables
+	script_content = """#!/bin/bash
+# user_name (str): The user's name. Default: John
+# port_number (int): Port number. Default: 8080
+echo "Hello $USER_NAME on port $PORT_NUMBER"
+"""
+	script = write_temp_script(tmp_path, script_content)
+	
+	# Run the script - should work with the annotation defaults
+	rc = cli.main([str(script)])
+	assert rc == 0
