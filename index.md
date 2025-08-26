@@ -57,6 +57,29 @@ Version: v1.2.3
 
 That's it! No modifications needed to your script.
 
+### Add Google-style annotations with short aliases (optional)
+
+```bash
+# deploy.sh
+#!/bin/bash
+# SERVICE (str) [alias: -s]: Service to deploy
+# ENVIRONMENT (choice[dev, staging, prod]) [alias: -e]: Target environment
+# VERSION (str): Version tag to deploy. Default: latest
+# DRY_RUN (bool) [alias: -n]: Dry run mode. Default: false
+
+echo "Deploying $SERVICE to $ENVIRONMENT"
+echo "Version: ${VERSION:-latest}"
+if [ "$DRY_RUN" = "true" ]; then
+    echo "(dry run)"
+fi
+```
+
+Use short aliases:
+
+```bash
+$ argorator deploy.sh -s api -e prod -n
+```
+
 ## 🚀 Direct Execution with Shebang
 
 Make your scripts directly executable:
