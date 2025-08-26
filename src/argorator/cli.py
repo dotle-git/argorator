@@ -136,7 +136,8 @@ def build_dynamic_arg_parser(
 	- Env-backed variables become optional with defaults from the environment
 	- Numeric positional references ($1, $2, ...) become positionals ARG1, ARG2, ...
 	- Varargs ($@ or $*) collects remaining args via an ARGS positional with nargs='*'
-	- Annotations from comments provide type information and help text
+	- Annotations from comments provide type information, help text, and grouping
+	- Arguments can be organized into groups and mutually exclusive groups
 	"""
 	if annotations is None:
 		annotations = {}
@@ -152,8 +153,59 @@ def build_dynamic_arg_parser(
 		else:  # str, string or choice
 			return str
 	
-	# Options for variables
-	for name in undefined_vars:
+	# Collect all variables that need arguments
+	all_vars = list(undefined_vars) + list(env_vars.keys())
+	
+	# Group variables by their group annotations
+	grouped_vars = {}  # group_name -> list of vars
+	exclusive_grouped_vars = {}  # exclusive_group_name -> list of vars
+	ungrouped_vars = []  # vars not in any group
+	
+	for var in all_vars:
+		annotation = annotations.get(var, ArgumentAnnotation())
+		if annotation.exclusive_group:
+			if annotation.exclusive_group not in exclusive_grouped_vars:
+				exclusive_grouped_vars[annotation.exclusive_group] = []
+			exclusive_grouped_vars[annotation.exclusive_group].append(var)
+		elif annotation.group:
+			if annotation.group not in grouped_vars:
+				grouped_vars[annotation.group] = []
+			grouped_vars[annotation.group].append(var)
+		else:
+			ungrouped_vars.append(var)
+	
+	# Create argument groups and exclusive groups
+	created_groups = {}  # group_name -> ArgumentGroup
+	created_exclusive_groups = {}  # group_name -> MutuallyExclusiveGroup
+	
+	# Create regular argument groups
+	for group_name, vars_in_group in grouped_vars.items():
+		group = parser.add_argument_group(group_name)
+		created_groups[group_name] = group
+	
+	# Create mutually exclusive groups
+	for group_name, vars_in_group in exclusive_grouped_vars.items():
+		exclusive_group = parser.add_mutually_exclusive_group()
+		created_exclusive_groups[group_name] = exclusive_group
+	
+	# Helper function to add an argument to the appropriate parser/group
+	def add_argument_to_parser(var_name: str, arg_names: List[str], kwargs: Dict):
+		annotation = annotations.get(var_name, ArgumentAnnotation())
+		
+		if annotation.exclusive_group:
+			# Add to mutually exclusive group
+			target_parser = created_exclusive_groups[annotation.exclusive_group]
+		elif annotation.group:
+			# Add to regular argument group
+			target_parser = created_groups[annotation.group]
+		else:
+			# Add to main parser
+			target_parser = parser
+		
+		target_parser.add_argument(*arg_names, **kwargs)
+	
+	# Helper function to build argument configuration
+	def build_argument_config(name: str, is_env_var: bool = False, env_value: str = None):
 		annotation = annotations.get(name, ArgumentAnnotation())
 		
 		# Build argument names
@@ -170,73 +222,10 @@ def build_dynamic_arg_parser(
 			# Determine default boolean value
 			if annotation.default is not None:
 				default_bool = annotation.default.lower() in ('true', '1', 'yes', 'y')
+			elif is_env_var:
+				default_bool = env_value.lower() in ('true', '1', 'yes', 'y')
 			else:
 				default_bool = False  # Default to False for required booleans
-			
-			if default_bool:
-				# Default is True, so flag should store_false
-				kwargs['action'] = 'store_false'
-				kwargs['default'] = True
-				if annotation.help:
-					kwargs['help'] = f"{annotation.help} (default: true)"
-				else:
-					kwargs['help'] = "(default: true)"
-			else:
-				# Default is False, so flag should store_true
-				kwargs['action'] = 'store_true'
-				kwargs['default'] = False
-				if annotation.help:
-					kwargs['help'] = f"{annotation.help} (default: false)"
-				else:
-					kwargs['help'] = "(default: false)"
-			
-			# Boolean flags are never required (they have implicit defaults)
-			kwargs['required'] = False
-		else:
-			# Non-boolean types
-			kwargs['type'] = get_type_converter(annotation.type)
-			
-			# If annotation provides a default, make it optional
-			if annotation.default is not None:
-				kwargs['default'] = get_type_converter(annotation.type)(annotation.default)
-				kwargs['required'] = False
-				if annotation.help:
-					kwargs['help'] = f"{annotation.help} (default: {annotation.default})"
-				else:
-					kwargs['help'] = f"(default: {annotation.default})"
-			else:
-				kwargs['required'] = True
-				if annotation.help:
-					kwargs['help'] = annotation.help
-			
-			if annotation.choices:
-				kwargs['choices'] = annotation.choices
-		
-		parser.add_argument(*arg_names, **kwargs)
-		
-	for name, value in env_vars.items():
-		annotation = annotations.get(name, ArgumentAnnotation())
-		
-		# Build argument names
-		arg_names = [f"--{name.lower()}"]
-		if annotation.alias:
-			arg_names.insert(0, annotation.alias)  # Put alias first
-		
-		# Use annotation default if provided, otherwise use env value
-		default_value = annotation.default if annotation.default is not None else value
-		
-		kwargs = {
-			'dest': name,
-			'required': False,
-		}
-		
-		# Handle boolean type specially
-		if annotation.type == 'bool':
-			# Determine default boolean value
-			if annotation.default is not None:
-				default_bool = annotation.default.lower() in ('true', '1', 'yes', 'y')
-			else:
-				default_bool = value.lower() in ('true', '1', 'yes', 'y')
 			
 			if default_bool:
 				# Default is True, so flag should store_false
@@ -247,8 +236,10 @@ def build_dynamic_arg_parser(
 					help_parts.append(annotation.help)
 				if annotation.default is not None:
 					help_parts.append("(default: true)")
+				elif is_env_var:
+					help_parts.append(f"(default from env: {env_value})")
 				else:
-					help_parts.append(f"(default from env: {value})")
+					help_parts.append("(default: true)")
 				kwargs['help'] = ' '.join(help_parts)
 			else:
 				# Default is False, so flag should store_true
@@ -259,29 +250,55 @@ def build_dynamic_arg_parser(
 					help_parts.append(annotation.help)
 				if annotation.default is not None:
 					help_parts.append("(default: false)")
+				elif is_env_var:
+					help_parts.append(f"(default from env: {env_value})")
 				else:
-					help_parts.append(f"(default from env: {value})")
+					help_parts.append("(default: false)")
 				kwargs['help'] = ' '.join(help_parts)
+			
+			# Boolean flags are never required (they have implicit defaults)
+			kwargs['required'] = False
 		else:
 			# Non-boolean types
 			kwargs['type'] = get_type_converter(annotation.type)
-			kwargs['default'] = get_type_converter(annotation.type)(default_value)
 			
-			# Build help text with default value info
-			help_parts = []
-			if annotation.help:
-				help_parts.append(annotation.help)
+			# Determine default value and required status
 			if annotation.default is not None:
+				kwargs['default'] = get_type_converter(annotation.type)(annotation.default)
+				kwargs['required'] = False
+				help_parts = []
+				if annotation.help:
+					help_parts.append(annotation.help)
 				help_parts.append(f"(default: {annotation.default})")
+				kwargs['help'] = ' '.join(help_parts)
+			elif is_env_var:
+				kwargs['default'] = get_type_converter(annotation.type)(env_value)
+				kwargs['required'] = False
+				help_parts = []
+				if annotation.help:
+					help_parts.append(annotation.help)
+				help_parts.append(f"(default from env: {env_value})")
+				kwargs['help'] = ' '.join(help_parts)
 			else:
-				help_parts.append(f"(default from env: {value})")
-			kwargs['help'] = ' '.join(help_parts)
+				kwargs['required'] = True
+				if annotation.help:
+					kwargs['help'] = annotation.help
 			
 			if annotation.choices:
 				kwargs['choices'] = annotation.choices
 		
-		parser.add_argument(*arg_names, **kwargs)
+		return arg_names, kwargs
+	
+	# Add undefined variables (required arguments)
+	for name in undefined_vars:
+		arg_names, kwargs = build_argument_config(name, is_env_var=False)
+		add_argument_to_parser(name, arg_names, kwargs)
 		
+	# Add environment variables (optional arguments with defaults)
+	for name, value in env_vars.items():
+		arg_names, kwargs = build_argument_config(name, is_env_var=True, env_value=value)
+		add_argument_to_parser(name, arg_names, kwargs)
+	
 	# Positional arguments
 	for index in sorted(positional_indices):
 		parser.add_argument(f"ARG{index}")

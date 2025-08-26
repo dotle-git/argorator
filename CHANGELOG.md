@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Argument groups and mutually exclusive groups support**
+  - Group related arguments together for better help organization
+  - Mutually exclusive groups ensure only one option from a set can be specified
+  - Google-style annotations support: `# VAR (type) [group: group_name]: Description`
+  - Exclusive groups syntax: `# VAR (type) [exclusive_group: group_name]: Description`
 - GitHub Pages documentation site with Jekyll
   - Main landing page with full project overview
   - Organized documentation structure in docs/ folder
