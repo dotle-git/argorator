@@ -1,3 +1,9 @@
+---
+layout: page
+title: Google-Style Annotations
+permalink: /docs/features/google_style_annotations/
+---
+
 # Argorator Google-Style Annotations
 
 *Added in version 0.3.0*
