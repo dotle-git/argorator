@@ -8,19 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Pydantic models for argument annotations providing better type safety and validation
-- `pydantic>=2.0` as a dependency
-
-### Changed
-- Argument annotations now use Pydantic `ArgumentAnnotation` model instead of plain dictionaries
-- Removed separate CONTRIBUTING.md file - contributing guidelines are now in the main README
-
-### Fixed
-- Alias validation now automatically prepends '-' if not present
-
-## [0.3.0] - 2024-01-XX
-
-### Added
 - Google-style docstring annotations for shell script arguments
   - Support for type annotations: `# VAR (type): Description`
   - Default values: `# VAR (type): Description. Default: value`
@@ -31,14 +18,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Flags with default true use store_false action
 - Short aliases for all parameter types
 - New `annotations.py` module for better code organization
+- Pydantic models for argument annotations providing better type safety and validation
+- `pydantic>=2.0` as a dependency
 
 ### Changed
 - Boolean arguments now use flag syntax without values
 - Refactored annotation parsing into separate module
 - Updated documentation with comprehensive examples
+- Argument annotations now use Pydantic `ArgumentAnnotation` model instead of plain dictionaries
+- Removed separate CONTRIBUTING.md file - contributing guidelines are now in the main README
 
 ### Fixed
 - Boolean values are properly converted to lowercase "true"/"false" for shell compatibility
+- Alias validation now automatically prepends '-' if not present
+
+### Removed
+- Example scripts directory - examples are now in documentation
 
 ## [0.2.0] - Previous release
 

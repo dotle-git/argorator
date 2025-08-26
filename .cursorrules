@@ -13,7 +13,6 @@ Argorator is a Python tool that transforms shell scripts into fully-featured com
 │   ├── annotations.py     # Google-style annotation parser
 │   └── models.py          # Pydantic models for annotations
 ├── tests/                  # Test files
-├── examples/               # Example scripts demonstrating features
 ├── docs/                   # Documentation
 │   └── features/          # Feature-specific documentation
 ├── README.md              # Project README with contributing section
@@ -44,6 +43,7 @@ Argorator is a Python tool that transforms shell scripts into fully-featured com
 
 - **cli.py**: Main CLI logic, argument parsing, script execution
 - **annotations.py**: Google-style comment parsing functionality
+- **models.py**: Pydantic models for type-safe annotations
 - Keep modules focused - if a file exceeds ~400 lines, consider splitting
 
 ## Testing Requirements
@@ -57,7 +57,7 @@ Argorator is a Python tool that transforms shell scripts into fully-featured com
 ## Documentation Updates
 
 - New features require documentation in `docs/features/`
-- Update examples/ with practical demonstrations
+- Include practical examples in documentation
 - Include version info for new features
 - Keep README.md concise - detailed docs go in docs/
 
@@ -75,6 +75,7 @@ Argorator is a Python tool that transforms shell scripts into fully-featured com
 - Annotations with defaults make arguments optional
 - Choice validation is handled by argparse
 - Environment variables are used as defaults when available
+- Pydantic models provide validation (e.g., alias auto-prepends '-')
 
 ## Common Pitfalls to Avoid
 
