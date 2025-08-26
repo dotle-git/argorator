@@ -128,7 +128,13 @@ def build_dynamic_arg_parser(undefined_vars: Sequence[str], env_vars: Dict[str, 
 	- Numeric positional references ($1, $2, ...) become positionals ARG1, ARG2, ...
 	- Varargs ($@ or $*) collects remaining args via an ARGS positional with nargs='*'
 	"""
-	parser = argparse.ArgumentParser(add_help=True)
+	parser = argparse.ArgumentParser(add_help=True, formatter_class=argparse.RawTextHelpFormatter, description=None, epilog='''JSON input: You can provide options/positionals as a JSON object.
+	  - Use --json-input '{"NAME":"Alice", "ARG1":"first"}'
+	  - Or pipe to stdin (only when no CLI args are provided):
+	      echo '{"NAME":"Alice"}' | argorator <script>
+	Notes: CLI args override JSON values. Scripts can opt out of stdin JSON
+	via a directive comment: '# argorator: no-json-stdin'.
+	''')
 	# Options for variables
 	for name in undefined_vars:
 		parser.add_argument(f"--{name.lower()}", dest=name, required=True)
@@ -191,13 +197,101 @@ def build_top_level_parser() -> argparse.ArgumentParser:
 	# run
 	run_parser = subparsers.add_parser("run", help="Run script (default)")
 	run_parser.add_argument("script", help="Path to the shell script")
+	run_parser.add_argument("--json-input", dest="json_input", help="JSON object providing options/positionals (use '-' to read from stdin)")
 	# compile
 	compile_parser = subparsers.add_parser("compile", help="Print modified script")
 	compile_parser.add_argument("script", help="Path to the shell script")
+	compile_parser.add_argument("--json-input", dest="json_input", help="JSON object providing options/positionals (use '-' to read from stdin)")
 	# export
 	export_parser = subparsers.add_parser("export", help="Print export lines")
 	export_parser.add_argument("script", help="Path to the shell script")
+	export_parser.add_argument("--json-input", dest="json_input", help="JSON object providing options/positionals (use '-' to read from stdin)")
 	return parser
+
+
+def _extract_json_input_from_args(args: List[str]) -> Tuple[List[str], Optional[str]]:
+	"""Extract --json-input value from a generic args list.
+
+	Returns a tuple of (args_without_json, json_input_value).
+	Supports forms: --json-input VALUE and --json-input=VALUE
+	"""
+	json_value: Optional[str] = None
+	result: List[str] = []
+	i = 0
+	while i < len(args):
+		arg = args[i]
+		if arg == "--json-input":
+			if i + 1 < len(args):
+				json_value = args[i + 1]
+				i += 2
+				continue
+			# Trailing option without a value; treat as absent and keep it
+			result.append(arg)
+			i += 1
+			continue
+		if arg.startswith("--json-input="):
+			json_value = arg.split("=", 1)[1]
+			i += 1
+			continue
+		result.append(arg)
+		i += 1
+	return result, json_value
+
+
+def _script_directives(script_text: str) -> Dict[str, bool]:
+	"""Parse script directive comments like '# argorator: no-json-stdin'."""
+	flags: Dict[str, bool] = {"no_json_stdin": False}
+	pattern = re.compile(r"^\s*#\s*argorator:\s*(.+)$", re.MULTILINE)
+	for m in pattern.finditer(script_text):
+		payload = m.group(1).strip().lower()
+		if "no-json-stdin" in payload:
+			flags["no_json_stdin"] = True
+			continue
+		# alternate formats: 'json-stdin: off' or 'json-stdin=off'
+		if "json-stdin" in payload and ("off" in payload or "false" in payload or "disable" in payload or "disabled" in payload):
+			flags["no_json_stdin"] = True
+	return flags
+
+
+def _json_obj_to_argv(json_obj: Dict[str, object], variable_names: Set[str], positional_indices: Set[int], varargs: bool) -> List[str]:
+	"""Convert a JSON object mapping to a list of CLI args for the dynamic parser.
+
+	- Variable keys (case-insensitive) map to --var value
+	- ARG<n> keys map to positionals
+	- ARGS key maps to a list of additional args (if varargs enabled)
+	"""
+	argv: List[str] = []
+	# Variables
+	upper_variable_names = {name.upper() for name in variable_names}
+	for key, value in list(json_obj.items()):
+		if not isinstance(key, str):
+			continue
+		upper_key = key.upper()
+		if upper_key in upper_variable_names:
+			argv.append(f"--{upper_key.lower()}")
+			argv.append(str(value))
+	# Positionals
+	positional_map: Dict[int, str] = {}
+	for key, value in list(json_obj.items()):
+		if not isinstance(key, str):
+			continue
+		m = re.fullmatch(r"ARG([1-9][0-9]*)", key.upper())
+		if m:
+			idx = int(m.group(1))
+			positional_map[idx] = str(value)
+	# Append positionals in order
+	for idx in sorted(positional_indices):
+		if idx in positional_map:
+			argv.append(positional_map[idx])
+	# Varargs
+	if varargs and "ARGS" in {k.upper() for k in json_obj.keys()}:
+		value = json_obj.get("ARGS") if "ARGS" in json_obj else json_obj.get("args")
+		if isinstance(value, list):
+			argv.extend([str(v) for v in value])
+		else:
+			# If provided as a single scalar, still accept
+			argv.append(str(value))
+	return argv
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -212,11 +306,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 	argv = list(argv) if argv is not None else sys.argv[1:]
 	# If first token is a known subcommand, parse with subparsers; otherwise treat as implicit run
 	subcommands = {"run", "compile", "export"}
+	json_input_raw: Optional[str] = None
 	if argv and argv[0] in subcommands:
 		parser = build_top_level_parser()
 		ns, unknown = parser.parse_known_args(argv)
 		command = ns.subcmd or "run"
 		script_arg: Optional[str] = getattr(ns, "script", None)
+		# capture json input provided at top-level
+		json_input_raw = getattr(ns, "json_input", None)
 		rest_args: List[str] = unknown
 		if script_arg is None:
 			print("error: script path is required", file=sys.stderr)
@@ -225,6 +322,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		# Implicit run path: use a minimal parser to capture script and remainder
 		implicit = argparse.ArgumentParser(prog="argorator", add_help=True, description="Execute or compile shell scripts with CLI-exposed variables")
 		implicit.add_argument("script", help="Path to the shell script")
+		# Allow --json-input before the script name as a convenience
+		implicit.add_argument("--json-input", dest="json_input", help="JSON object providing options/positionals (use '-' to read from stdin)")
 		implicit.add_argument("rest", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
 		try:
 			in_ns = implicit.parse_args(argv)
@@ -233,6 +332,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		command = "run"
 		script_arg = in_ns.script
 		rest_args = list(in_ns.rest or [])
+		# Extract --json-input if it was placed after the script
+		rest_args, rest_json_value = _extract_json_input_from_args(rest_args)
+		json_input_raw = getattr(in_ns, "json_input", None) or rest_json_value
 	# Validate and normalize script path
 	script_path = Path(script_arg).expanduser()
 	try:
@@ -244,14 +346,60 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		print(f"error: script not found: {script_path}", file=sys.stderr)
 		return 2
 	script_text = read_text_file(script_path)
+	# Parse directives
+	directives = _script_directives(script_text)
 	# Parse script
 	defined_vars, undefined_vars_map, env_vars = determine_variables(script_text)
 	positional_indices, varargs = parse_positional_usages(script_text)
 	# Build dynamic parser
 	undefined_names = sorted(undefined_vars_map.keys())
 	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs)
+	# Build argv from JSON input if provided
+	json_argv: List[str] = []
+	json_obj: Optional[Dict[str, object]] = None
+	# Decide whether to read stdin JSON when not explicitly provided
+	should_attempt_stdin_json = False
+	if json_input_raw is None and (not directives.get("no_json_stdin", False)):
+		# Only try stdin if no remainder args (avoid blocking) or only --help
+		cond_no_args = len([a for a in rest_args if a != "--help"]) == 0
+		if cond_no_args and not sys.stdin.isatty():
+			should_attempt_stdin_json = True
+	# If explicitly asked to read from stdin, do it regardless of args
+	if json_input_raw == "-":
+		try:
+			data = sys.stdin.read()
+			json_input_raw = data
+		except Exception:
+			json_input_raw = None
+	elif should_attempt_stdin_json:
+		try:
+			data = sys.stdin.read()
+			if data.strip():
+				json_input_raw = data
+		except Exception:
+			json_input_raw = None
+	# Parse json if available
+	if json_input_raw:
+		import json as _json
+		try:
+			parsed = _json.loads(json_input_raw)
+			if isinstance(parsed, dict):
+				json_obj = parsed  # type: ignore[assignment]
+			else:
+				print("error: --json-input must be a JSON object", file=sys.stderr)
+				return 2
+		except Exception as exc:
+			print(f"error: failed to parse JSON input: {exc}", file=sys.stderr)
+			return 2
+	if json_obj is not None:
+		variable_names: Set[str] = set(undefined_names) | set(env_vars.keys())
+		json_argv = _json_obj_to_argv(json_obj, variable_names, positional_indices, varargs)
+	# Compose final args for dynamic parser: JSON-derived first, then CLI rest
+	final_args: List[str] = []
+	final_args.extend(json_argv)
+	final_args.extend(rest_args)
 	try:
-		dyn_ns = dyn_parser.parse_args(rest_args)
+		dyn_ns = dyn_parser.parse_args(final_args)
 	except SystemExit as exc:
 		return int(exc.code)
 	# Collect resolved variable assignments

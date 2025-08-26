@@ -99,3 +99,54 @@ echo "Name: $NAME"
 	assert "(default from env: testuser)" in captured.out
 	# NAME should be required and not have a default
 	assert "--name" in captured.out
+
+
+# --- JSON input feature tests ---
+
+def test_json_input_option_maps_to_args(tmp_path: Path):
+	script = write_temp_script(tmp_path, SCRIPT_WITH_POS)
+	# Provide variables and positionals via JSON; also include ARGS for varargs
+	json_str = '{"ARG1":"first","ARG2":"second","NAME":"Alice","ARGS":["r1","r2"]}'
+	rc = cli.main(["run", str(script), "--json-input", json_str])
+	assert rc == 0
+
+
+def test_json_stdin_when_no_args(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
+	# Script requires NAME but no positionals
+	script = write_temp_script(tmp_path, SCRIPT_SIMPLE)
+	json_str = '{"NAME":"World"}'
+	# Simulate stdin by temporarily replacing sys.stdin
+	from io import StringIO
+	stdin_backup = sys.stdin
+	try:
+		sys.stdin = StringIO(json_str)
+		rc = cli.main([str(script)])
+		assert rc == 0
+	finally:
+		sys.stdin = stdin_backup
+
+
+def test_cli_args_override_json(tmp_path: Path):
+	script = write_temp_script(tmp_path, SCRIPT_SIMPLE)
+	json_str = '{"NAME":"FromJson"}'
+	rc = cli.main([str(script), "--json-input", json_str, "--name", "CliWins"])
+	assert rc == 0
+
+
+def test_opt_out_json_stdin_directive(tmp_path: Path, capsys):
+	script_text = """#!/bin/bash
+# argorator: no-json-stdin
+
+echo "Hello $NAME"
+"""
+	script = write_temp_script(tmp_path, script_text)
+	from io import StringIO
+	stdin_backup = sys.stdin
+	try:
+		# Provide stdin JSON which should be ignored due to directive
+		sys.stdin = StringIO('{"NAME":"Ignored"}')
+		# Without CLI args, this should error because NAME required and JSON from stdin is ignored
+		rc = cli.main([str(script)])
+		assert rc != 0
+	finally:
+		sys.stdin = stdin_backup
