@@ -71,16 +71,6 @@ echo "✅ Deployment complete!"
 
 ```bash
 $ chmod +x deploy-service.sh
-$ ./deploy-service.sh --help
-usage: deploy-service.sh [-h] --service_name SERVICE_NAME --environment ENVIRONMENT [--version VERSION] [--dry_run DRY_RUN]
-
-options:
-  -h, --help            show this help message and exit
-  --service_name SERVICE_NAME
-  --environment ENVIRONMENT
-  --version VERSION     (default from env: latest)
-  --dry_run DRY_RUN
-
 $ ./deploy-service.sh --service-name api --environment staging --dry-run true
 🚀 Deploying api to staging
 📦 Version: latest
@@ -90,81 +80,56 @@ $ ./deploy-service.sh --service-name api --environment staging --dry-run true
 
 ## 📚 Core Features
 
-### 1. Automatic Variable Detection
+### Automatic Variable Detection
 
-Undefined variables in your script become **required** CLI arguments:
-
-```bash
-# greet.sh
-echo "Hello, $NAME!"
-echo "You are $AGE years old"
-```
-
-```bash
-$ argorator greet.sh --name Alice --age 30
-Hello, Alice!
-You are 30 years old
-```
-
-### 2. Environment Variable Defaults
-
-Variables that exist in your environment become **optional** arguments with defaults:
-
-```bash
-# show-env.sh
-echo "Home: $HOME"
-echo "User: $USER"
-echo "Custom: $CUSTOM_VAR"
-```
-
-```bash
-$ argorator show-env.sh --help
-usage: argorator show-env.sh [-h] --custom_var CUSTOM_VAR [--home HOME] [--user USER]
-
-options:
-  -h, --help            show this help message and exit
-  --custom_var CUSTOM_VAR
-  --home HOME           (default from env: /home/yourusername)
-  --user USER           (default from env: yourusername)
-
-$ argorator show-env.sh --custom-var "test"
-Home: /home/yourusername
-User: yourusername
-Custom: test
-```
-
-### 3. Positional Arguments
-
-Scripts using `$1`, `$2`, etc. automatically accept positional arguments:
+Undefined variables become **required** CLI arguments, while environment variables become **optional** with defaults:
 
 ```bash
 # backup.sh
 #!/bin/bash
-echo "Backing up $1 to $2"
+echo "Backing up $SOURCE to $DESTINATION"
+echo "User: $USER"
 echo "Compression: ${COMPRESSION:-gzip}"
 ```
 
 ```bash
 $ argorator backup.sh --help
-usage: argorator backup.sh [-h] [--compression COMPRESSION] ARG1 ARG2
-
-positional arguments:
-  ARG1
-  ARG2
+usage: argorator backup.sh [-h] --source SOURCE --destination DESTINATION [--user USER] [--compression COMPRESSION]
 
 options:
   -h, --help            show this help message and exit
+  --source SOURCE
+  --destination DESTINATION
+  --user USER           (default from env: yourusername)
   --compression COMPRESSION
                         (default from env: gzip)
 
-$ argorator backup.sh /data /backups --compression bzip2
+$ argorator backup.sh --source /data --destination /backups --compression bzip2
 Backing up /data to /backups
+User: yourusername
 Compression: bzip2
 ```
 
-### 4. Variable Arguments with `$@`
+### Positional Arguments
 
-Collect multiple arguments using `$@` or `$*`:
+Scripts using `$1`, `$2`, etc. automatically accept positional arguments:
+
+```bash
+# copy-files.sh
+#!/bin/bash
+echo "Copying $1 to $2"
+echo "Options: ${OPTIONS:-none}"
+```
+
+```bash
+$ argorator copy-files.sh source.txt dest.txt --options "-v -r"
+Copying source.txt to dest.txt
+Options: -v -r
+```
+
+### Variable Arguments
+
+Collect multiple arguments using `$@`:
 
 ```bash
 # process-files.sh
@@ -182,30 +147,6 @@ Processing files:
   - doc2.txt
   - doc3.txt
 ```
-
-## 🛠️ Advanced Usage
-
-### Compile Mode
-
-Generate a standalone script with variables pre-filled:
-
-```bash
-$ argorator compile script.sh --var value > compiled.sh
-```
-
-### Export Mode
-
-Generate shell export statements:
-
-```bash
-$ eval "$(argorator export script.sh --var value)"
-```
-
-## 🔧 How It Works
-
-1. **Script Analysis**: Argorator parses your shell script to identify variables and positional arguments
-2. **CLI Generation**: Creates an argparse interface with appropriate options
-3. **Script Execution**: Injects variable definitions and runs your script
 
 ## 📋 Requirements
 
