@@ -59,6 +59,33 @@ def test_parse_exclusive_group_annotations():
     assert annotations["XML_OUTPUT"].exclusive_group == "Output Format"
 
 
+def test_parse_exclusive_group_shorthand():
+    """Test parsing xgroup shorthand for exclusive groups."""
+    script = """
+    # VERBOSE (bool) [xgroup: Output Mode]: Enable verbose output
+    # QUIET (bool) [xgroup: Output Mode]: Enable quiet mode  
+    # DEBUG (bool) [exclusive_group: Debug Mode]: Enable debug mode
+    # TRACE (bool) [xgroup: Debug Mode]: Enable trace mode
+    """
+    annotations = parse_arg_annotations(script)
+    
+    # Test xgroup shorthand
+    assert "VERBOSE" in annotations
+    assert annotations["VERBOSE"].exclusive_group == "Output Mode"
+    assert annotations["VERBOSE"].group is None
+    assert annotations["VERBOSE"].type == "bool"
+    
+    assert "QUIET" in annotations
+    assert annotations["QUIET"].exclusive_group == "Output Mode"
+    
+    # Test mixing full name and shorthand in same group
+    assert "DEBUG" in annotations
+    assert annotations["DEBUG"].exclusive_group == "Debug Mode"
+    
+    assert "TRACE" in annotations
+    assert annotations["TRACE"].exclusive_group == "Debug Mode"
+
+
 def test_parse_mixed_group_annotations():
     """Test parsing mixed annotations with groups, exclusive groups, and ungrouped."""
     script = """

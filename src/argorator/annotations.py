@@ -14,6 +14,7 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 	- # VAR_NAME (type) [alias: -x]: Description
 	- # VAR_NAME (type) [group: group_name]: Description
 	- # VAR_NAME (type) [exclusive_group: group_name]: Description
+	- # VAR_NAME (type) [xgroup: group_name]: Description (shorthand for exclusive_group)
 	
 	For choice types:
 	- # VAR_NAME (choice[opt1, opt2, opt3]): Description
@@ -67,7 +68,7 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 					alias = value
 				elif key == 'group':
 					group = value
-				elif key == 'exclusive_group':
+				elif key in ('exclusive_group', 'xgroup'):  # Support both full and shorthand
 					exclusive_group = value
 		
 		# Normalize type

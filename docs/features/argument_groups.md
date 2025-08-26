@@ -186,11 +186,13 @@ Database:
 
 ```bash
 # VARIABLE (type) [exclusive_group: Group Name]: Description
+# VARIABLE (type) [xgroup: Group Name]: Description          # Shorthand
 ```
 
 - `Group Name`: Any descriptive name for the exclusive group
 - Only one argument from the group can be specified
 - Exclusive group names are case-sensitive
+- `xgroup` is a convenient shorthand for `exclusive_group`
 
 ### Complete Syntax
 
@@ -199,6 +201,7 @@ Groups can be combined with all other annotation features:
 ```bash
 # VARIABLE (type) [alias: -x] [group: Group Name]: Description. Default: value
 # VARIABLE (type) [alias: -x] [exclusive_group: Group Name]: Description. Default: value
+# VARIABLE (type) [alias: -x] [xgroup: Group Name]: Description. Default: value
 ```
 
 ## Constraints and Validation
