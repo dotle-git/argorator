@@ -12,7 +12,8 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Set, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple, Any
+import json
 
 
 SPECIAL_VARS: Set[str] = {"@", "*", "#", "?", "$", "!", "0"}
@@ -80,6 +81,47 @@ def parse_variable_usages(script_text: str) -> Set[str]:
 	candidates.update(brace_pattern.findall(script_text))
 	candidates.update(simple_pattern.findall(script_text))
 	return {name for name in candidates if name and name not in SPECIAL_VARS}
+
+
+def script_allows_json_input(script_text: str) -> bool:
+    """Return False if a directive comment disables JSON input handling.
+
+    A line containing `argorator: no-json-input` (case insensitive) disables support.
+    """
+    directive_pattern = re.compile(r"argorator:\s*no-json-input", re.IGNORECASE)
+    return not directive_pattern.search(script_text)
+
+
+def json_to_argv(json_obj: Dict[str, Any], undefined_vars: Sequence[str], env_vars: Dict[str, str], positional_indices: Set[int], varargs: bool) -> List[str]:
+    """Convert a JSON object to an argv list expected by the dynamic parser.
+
+    Variable keys (matching undefined or env variables) become `--var value` pairs.
+    Positional parameters should be provided using keys like `ARG1`, `ARG2`, ...
+    Varargs can be provided via an `ARGS` key whose value is a list/tuple.
+    """
+    argv: List[str] = []
+    # Handle variable flags first
+    for name in undefined_vars:
+        if name in json_obj:
+            argv.extend([f"--{name.lower()}", str(json_obj[name])])
+    for name in env_vars.keys():
+        if name in json_obj:
+            argv.extend([f"--{name.lower()}", str(json_obj[name])])
+    # Handle positionals
+    positional_parts: List[str] = []
+    for idx in sorted(positional_indices):
+        key = f"ARG{idx}"
+        if key in json_obj:
+            positional_parts.append(str(json_obj[key]))
+    # Handle varargs
+    if varargs and "ARGS" in json_obj:
+        extra = json_obj["ARGS"]
+        if isinstance(extra, (list, tuple)):
+            positional_parts.extend([str(v) for v in extra])
+        else:
+            positional_parts.append(str(extra))
+    argv.extend(positional_parts)
+    return argv
 
 
 def parse_positional_usages(script_text: str) -> Tuple[Set[int], bool]:
@@ -191,12 +233,15 @@ def build_top_level_parser() -> argparse.ArgumentParser:
 	# run
 	run_parser = subparsers.add_parser("run", help="Run script (default)")
 	run_parser.add_argument("script", help="Path to the shell script")
+	run_parser.add_argument("--json-input", dest="json_input", help="Provide arguments as JSON string or '-' to read from stdin", required=False)
 	# compile
 	compile_parser = subparsers.add_parser("compile", help="Print modified script")
 	compile_parser.add_argument("script", help="Path to the shell script")
+	compile_parser.add_argument("--json-input", dest="json_input", help="Provide arguments as JSON string or '-' to read from stdin", required=False)
 	# export
 	export_parser = subparsers.add_parser("export", help="Print export lines")
 	export_parser.add_argument("script", help="Path to the shell script")
+	export_parser.add_argument("--json-input", dest="json_input", help="Provide arguments as JSON string or '-' to read from stdin", required=False)
 	return parser
 
 
@@ -217,7 +262,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		ns, unknown = parser.parse_known_args(argv)
 		command = ns.subcmd or "run"
 		script_arg: Optional[str] = getattr(ns, "script", None)
-		rest_args: List[str] = unknown
+		# Build rest_args including json_input if provided to unify later handling
+		rest_args: List[str] = []
+		if getattr(ns, "json_input", None) is not None:
+			rest_args.extend(["--json-input", ns.json_input])
+		rest_args.extend(unknown)
 		if script_arg is None:
 			print("error: script path is required", file=sys.stderr)
 			return 2
@@ -226,6 +275,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		implicit = argparse.ArgumentParser(prog="argorator", add_help=True, description="Execute or compile shell scripts with CLI-exposed variables")
 		implicit.add_argument("script", help="Path to the shell script")
 		implicit.add_argument("rest", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
+		implicit.add_argument("--json-input", dest="json_input", help="Provide arguments as JSON string or '-' to read from stdin", required=False)
 		try:
 			in_ns = implicit.parse_args(argv)
 		except SystemExit as exc:
@@ -233,6 +283,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		command = "run"
 		script_arg = in_ns.script
 		rest_args = list(in_ns.rest or [])
+		if in_ns.json_input is not None:
+			rest_args.insert(0, in_ns.json_input)
+			rest_args.insert(0, "--json-input")
 	# Validate and normalize script path
 	script_path = Path(script_arg).expanduser()
 	try:
@@ -247,6 +300,35 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 	# Parse script
 	defined_vars, undefined_vars_map, env_vars = determine_variables(script_text)
 	positional_indices, varargs = parse_positional_usages(script_text)
+	# JSON input handling
+	if script_allows_json_input(script_text):
+		json_str: Optional[str] = None
+		if "--json-input" in rest_args:
+			idx = rest_args.index("--json-input")
+			if idx + 1 >= len(rest_args):
+				print("error: --json-input requires a value", file=sys.stderr)
+				return 2
+			json_arg = rest_args.pop(idx + 1)
+			rest_args.pop(idx)
+			if json_arg == "-":
+				json_str = sys.stdin.read()
+			else:
+				json_str = json_arg
+		elif not rest_args and not sys.stdin.isatty():
+			# Attempt to read JSON from stdin when no script args given
+			stdin_data = sys.stdin.read()
+			if stdin_data.strip():
+				json_str = stdin_data
+
+		if json_str is not None:
+			try:
+				json_obj = json.loads(json_str)
+				if not isinstance(json_obj, dict):
+					raise ValueError("JSON input must be an object mapping names to values")
+			except Exception as exc:
+				print(f"error: invalid JSON input: {exc}", file=sys.stderr)
+				return 2
+			rest_args = json_to_argv(json_obj, sorted(undefined_vars_map.keys()), env_vars, positional_indices, varargs)
 	# Build dynamic parser
 	undefined_names = sorted(undefined_vars_map.keys())
 	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs)
