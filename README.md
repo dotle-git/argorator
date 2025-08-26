@@ -54,6 +54,30 @@ options:
 
 That's it! Your script now has professional command-line options.
 
+### Optional: Add Google-style annotations and short aliases
+
+You can document types, defaults, and add short aliases directly in comments:
+
+```bash
+#!/bin/bash
+# NAME (str) [alias: -n]: Your name
+# AGE (int) [alias: -a]: Your age in years
+# LOUD (bool) [alias: -l]: Shout the greeting. Default: false
+
+echo "Hello $NAME!"
+if [ "$LOUD" = "true" ]; then
+    echo "YOU ARE $AGE YEARS OLD"
+else
+    echo "You are $AGE years old"
+fi
+```
+
+Now you can use short flags:
+
+```bash
+argorator hello.sh -n John -a 25 -l
+```
+
 ## Make Scripts Executable
 
 Add this line to the top of your script:
@@ -72,6 +96,9 @@ Make it executable and run it:
 ```bash
 chmod +x greet.sh
 ./greet.sh --name Alice --loud true
+
+# Or using short aliases if annotated
+# ./greet.sh -n Alice -l
 ```
 
 Output:
