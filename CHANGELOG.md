@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Updated tagline to "stop writing argument parsing in bash"
+- Added before/after example showing bash argument parsing complexity vs Argorator
+- Moved before/after section lower in README for better flow
+- Simplified README.md language and examples for new developers
+- Removed file name comments from examples for cleaner code blocks
+- Removed advanced usage and "how it works" sections
+- Streamlined examples for better clarity and focus
+
 ### Added
 - GitHub Pages documentation site with Jekyll
   - Main landing page with full project overview
