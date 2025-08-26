@@ -14,6 +14,9 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
+from .annotations import parse_arg_annotations
+from .models import ArgumentAnnotation
+
 
 SPECIAL_VARS: Set[str] = {"@", "*", "#", "?", "$", "!", "0"}
 
@@ -120,21 +123,165 @@ def determine_variables(script_text: str) -> Tuple[Set[str], Dict[str, Optional[
 	return defined_vars, undefined_vars, env_vars
 
 
-def build_dynamic_arg_parser(undefined_vars: Sequence[str], env_vars: Dict[str, str], positional_indices: Set[int], varargs: bool) -> argparse.ArgumentParser:
+def build_dynamic_arg_parser(
+	undefined_vars: Sequence[str], 
+	env_vars: Dict[str, str], 
+	positional_indices: Set[int], 
+	varargs: bool,
+	annotations: Optional[Dict[str, ArgumentAnnotation]] = None
+) -> argparse.ArgumentParser:
 	"""Construct an argparse parser for script-specific variables and positionals.
 
 	- Undefined variables become required options: --var (lowercase)
 	- Env-backed variables become optional with defaults from the environment
 	- Numeric positional references ($1, $2, ...) become positionals ARG1, ARG2, ...
 	- Varargs ($@ or $*) collects remaining args via an ARGS positional with nargs='*'
+	- Annotations from comments provide type information and help text
 	"""
+	if annotations is None:
+		annotations = {}
+	
 	parser = argparse.ArgumentParser(add_help=True)
+	
+	# Helper function to get type converter
+	def get_type_converter(type_str: str):
+		if type_str == 'int':
+			return int
+		elif type_str == 'float':
+			return float
+		else:  # str, string or choice
+			return str
+	
 	# Options for variables
 	for name in undefined_vars:
-		parser.add_argument(f"--{name.lower()}", dest=name, required=True)
+		annotation = annotations.get(name, ArgumentAnnotation())
+		
+		# Build argument names
+		arg_names = [f"--{name.lower()}"]
+		if annotation.alias:
+			arg_names.insert(0, annotation.alias)  # Put alias first
+		
+		kwargs = {
+			'dest': name,
+		}
+		
+		# Handle boolean type specially
+		if annotation.type == 'bool':
+			# Determine default boolean value
+			if annotation.default is not None:
+				default_bool = annotation.default.lower() in ('true', '1', 'yes', 'y')
+			else:
+				default_bool = False  # Default to False for required booleans
+			
+			if default_bool:
+				# Default is True, so flag should store_false
+				kwargs['action'] = 'store_false'
+				kwargs['default'] = True
+				if annotation.help:
+					kwargs['help'] = f"{annotation.help} (default: true)"
+				else:
+					kwargs['help'] = "(default: true)"
+			else:
+				# Default is False, so flag should store_true
+				kwargs['action'] = 'store_true'
+				kwargs['default'] = False
+				if annotation.help:
+					kwargs['help'] = f"{annotation.help} (default: false)"
+				else:
+					kwargs['help'] = "(default: false)"
+			
+			# Boolean flags are never required (they have implicit defaults)
+			kwargs['required'] = False
+		else:
+			# Non-boolean types
+			kwargs['type'] = get_type_converter(annotation.type)
+			
+			# If annotation provides a default, make it optional
+			if annotation.default is not None:
+				kwargs['default'] = get_type_converter(annotation.type)(annotation.default)
+				kwargs['required'] = False
+				if annotation.help:
+					kwargs['help'] = f"{annotation.help} (default: {annotation.default})"
+				else:
+					kwargs['help'] = f"(default: {annotation.default})"
+			else:
+				kwargs['required'] = True
+				if annotation.help:
+					kwargs['help'] = annotation.help
+			
+			if annotation.choices:
+				kwargs['choices'] = annotation.choices
+		
+		parser.add_argument(*arg_names, **kwargs)
+		
 	for name, value in env_vars.items():
-		help_text = f"(default from env: {value})"
-		parser.add_argument(f"--{name.lower()}", dest=name, default=value, required=False, help=help_text)
+		annotation = annotations.get(name, ArgumentAnnotation())
+		
+		# Build argument names
+		arg_names = [f"--{name.lower()}"]
+		if annotation.alias:
+			arg_names.insert(0, annotation.alias)  # Put alias first
+		
+		# Use annotation default if provided, otherwise use env value
+		default_value = annotation.default if annotation.default is not None else value
+		
+		kwargs = {
+			'dest': name,
+			'required': False,
+		}
+		
+		# Handle boolean type specially
+		if annotation.type == 'bool':
+			# Determine default boolean value
+			if annotation.default is not None:
+				default_bool = annotation.default.lower() in ('true', '1', 'yes', 'y')
+			else:
+				default_bool = value.lower() in ('true', '1', 'yes', 'y')
+			
+			if default_bool:
+				# Default is True, so flag should store_false
+				kwargs['action'] = 'store_false'
+				kwargs['default'] = True
+				help_parts = []
+				if annotation.help:
+					help_parts.append(annotation.help)
+				if annotation.default is not None:
+					help_parts.append("(default: true)")
+				else:
+					help_parts.append(f"(default from env: {value})")
+				kwargs['help'] = ' '.join(help_parts)
+			else:
+				# Default is False, so flag should store_true
+				kwargs['action'] = 'store_true'
+				kwargs['default'] = False
+				help_parts = []
+				if annotation.help:
+					help_parts.append(annotation.help)
+				if annotation.default is not None:
+					help_parts.append("(default: false)")
+				else:
+					help_parts.append(f"(default from env: {value})")
+				kwargs['help'] = ' '.join(help_parts)
+		else:
+			# Non-boolean types
+			kwargs['type'] = get_type_converter(annotation.type)
+			kwargs['default'] = get_type_converter(annotation.type)(default_value)
+			
+			# Build help text with default value info
+			help_parts = []
+			if annotation.help:
+				help_parts.append(annotation.help)
+			if annotation.default is not None:
+				help_parts.append(f"(default: {annotation.default})")
+			else:
+				help_parts.append(f"(default from env: {value})")
+			kwargs['help'] = ' '.join(help_parts)
+			
+			if annotation.choices:
+				kwargs['choices'] = annotation.choices
+		
+		parser.add_argument(*arg_names, **kwargs)
+		
 	# Positional arguments
 	for index in sorted(positional_indices):
 		parser.add_argument(f"ARG{index}")
@@ -247,9 +394,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 	# Parse script
 	defined_vars, undefined_vars_map, env_vars = determine_variables(script_text)
 	positional_indices, varargs = parse_positional_usages(script_text)
+	annotations = parse_arg_annotations(script_text)
 	# Build dynamic parser
 	undefined_names = sorted(undefined_vars_map.keys())
-	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs)
+	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs, annotations)
 	try:
 		dyn_ns = dyn_parser.parse_args(rest_args)
 	except SystemExit as exc:
@@ -260,11 +408,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		value = getattr(dyn_ns, name, None)
 		if value is None:
 			print(f"error: missing required --{name}", file=sys.stderr)
-			return 2
-		assignments[name] = str(value)
-	for name in env_vars.keys():
-		value = getattr(dyn_ns, name, env_vars[name])
-		assignments[name] = str(value)
+			return 1
+		# Convert boolean values to lowercase string for shell compatibility
+		if isinstance(value, bool):
+			assignments[name] = "true" if value else "false"
+		else:
+			assignments[name] = str(value)
+	for name, env_value in env_vars.items():
+		value = getattr(dyn_ns, name, env_value)
+		# Convert boolean values to lowercase string for shell compatibility
+		if isinstance(value, bool):
+			assignments[name] = "true" if value else "false"
+		else:
+			assignments[name] = str(value)
 	# Collect positional args for shell invocation
 	positional_values: List[str] = []
 	for index in sorted(positional_indices):

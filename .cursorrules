@@ -1,0 +1,95 @@
+# Argorator Project Rules
+
+## Project Overview
+Argorator is a Python tool that transforms shell scripts into fully-featured command-line tools by automatically exposing variables as CLI arguments.
+
+## Project Structure
+
+```
+.
+├── src/argorator/          # Main source code
+│   ├── __init__.py
+│   ├── cli.py             # Core CLI implementation
+│   ├── annotations.py     # Google-style annotation parser
+│   └── models.py          # Pydantic models for annotations
+├── tests/                  # Test files
+├── docs/                   # Documentation
+│   └── features/          # Feature-specific documentation
+├── README.md              # Project README with contributing section
+├── CHANGELOG.md           # Version history (Keep a Changelog format)
+├── pyproject.toml         # Project configuration (contains version)
+└── LICENSE               # MIT License
+```
+
+## CRITICAL: Version and Changelog Management
+
+### When Making ANY Changes:
+1. **ALWAYS update CHANGELOG.md FIRST** under `[Unreleased]` section
+2. Use appropriate section: Added, Changed, Fixed, Deprecated, Removed, Security
+3. Write clear, user-facing descriptions
+
+### Version Bumping:
+- **MAJOR** (x.0.0): Breaking changes to CLI interface or script compatibility
+- **MINOR** (0.x.0): New features, backwards compatible
+- **PATCH** (0.0.x): Bug fixes, documentation updates
+
+### Release Process:
+1. Update version in `pyproject.toml`
+2. Move `[Unreleased]` items to new version section with date in CHANGELOG.md
+3. Update version references in documentation where relevant
+4. Commit message: "Release vX.Y.Z"
+
+## Code Organization
+
+- **cli.py**: Main CLI logic, argument parsing, script execution
+- **annotations.py**: Google-style comment parsing functionality
+- **models.py**: Pydantic models for type-safe annotations
+- Keep modules focused - if a file exceeds ~400 lines, consider splitting
+
+## Testing Requirements
+
+- **ALWAYS run tests before committing**: `PYTHONPATH=/workspace/src python3 -m pytest tests/`
+- Add tests for ALL new functionality
+- Test files should mirror source structure
+- Use pytest fixtures for common test data
+- Integration tests should use temporary files
+- Test edge cases and error conditions
+- Fix failing tests immediately - don't commit broken tests
+
+## Documentation Updates
+
+- New features require documentation in `docs/features/`
+- Include practical examples in documentation
+- Include version info for new features
+- Keep README.md concise - detailed docs go in docs/
+
+## Code Style
+
+- Follow PEP 8 strictly
+- Use type hints for function signatures
+- Write comprehensive docstrings
+- Shell script variables must be UPPERCASE
+- Boolean CLI flags should use store_true/store_false
+
+## Important Implementation Notes
+
+- Boolean values are converted to lowercase "true"/"false" for shell compatibility
+- Annotations with defaults make arguments optional
+- Choice validation is handled by argparse
+- Environment variables are used as defaults when available
+- Pydantic models provide validation (e.g., alias auto-prepends '-')
+
+## Common Pitfalls to Avoid
+
+- Don't forget to update CHANGELOG.md
+- Don't add required arguments after optional ones
+- Don't use mutable default arguments
+- Don't break backward compatibility without a major version bump
+- Don't create documentation without examples
+
+## Commit Message Guidelines
+
+- Use present tense ("Add feature" not "Added feature")
+- First line should be 50 characters or less
+- Reference issues and pull requests where applicable
+- Explain WHY not just WHAT in the body
