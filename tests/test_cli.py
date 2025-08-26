@@ -124,13 +124,13 @@ echo "Server running on $HOST:$PORT for user $NAME"
 	
 	# Should show conflict warning for PORT but not HOST
 	assert "WARNING: Default value conflicts detected:" in captured.out
-	assert "PORT: environment='3000' vs annotation='8080' (using annotation)" in captured.out
+	assert "PORT: environment='3000' vs annotation='8080' (using environment)" in captured.out
 	# HOST should not appear in conflicts since values match
 	assert "HOST: environment=" not in captured.out
 	
-	# Should show that annotation default is being used with override notice
-	assert "(default: 8080, overriding env)" in captured.out
-	assert "(default: localhost)" in captured.out  # No override notice for HOST
+	# Should show that environment default is being used with override notice
+	assert "(default from env: 3000, overriding annotation)" in captured.out
+	assert "(default from env: localhost)" in captured.out  # No override notice for HOST
 
 
 def test_env_annotation_conflict_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
@@ -149,8 +149,8 @@ echo "Debug mode: $DEBUG"
 	assert rc == 0
 	
 	captured = capsys.readouterr()
-	# Should export DEBUG=false because annotation default overrides env
-	assert "export DEBUG=false" in captured.out
+	# Should export DEBUG=true because environment value overrides annotation default
+	assert "export DEBUG=true" in captured.out
 
 
 def test_no_conflict_when_no_annotation_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
@@ -199,9 +199,9 @@ echo "Server: $HOST:$PORT, timeout: $TIMEOUT, debug: $DEBUG"
 	
 	# Should show all conflicts
 	assert "WARNING: Default value conflicts detected:" in captured.out
-	assert "PORT: environment='3000' vs annotation='8080' (using annotation)" in captured.out
-	assert "TIMEOUT: environment='30' vs annotation='60' (using annotation)" in captured.out
-	assert "DEBUG: environment='true' vs annotation='false' (using annotation)" in captured.out
+	assert "PORT: environment='3000' vs annotation='8080' (using environment)" in captured.out
+	assert "TIMEOUT: environment='30' vs annotation='60' (using environment)" in captured.out
+	assert "DEBUG: environment='true' vs annotation='false' (using environment)" in captured.out
 	# HOST has no env var, so no conflict
 	assert "HOST: environment=" not in captured.out
 

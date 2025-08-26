@@ -158,7 +158,7 @@ def build_dynamic_arg_parser(
 			if conflicts:
 				warning_lines = ["\nWARNING: Default value conflicts detected:"]
 				for var_name, env_val, ann_val in conflicts:
-					warning_lines.append(f"  {var_name}: environment='{env_val}' vs annotation='{ann_val}' (using annotation)")
+					warning_lines.append(f"  {var_name}: environment='{env_val}' vs annotation='{ann_val}' (using environment)")
 				warning_lines.append("")
 				help_text = help_text + "\n".join(warning_lines)
 			return help_text
@@ -244,8 +244,8 @@ def build_dynamic_arg_parser(
 		if annotation.alias:
 			arg_names.insert(0, annotation.alias)  # Put alias first
 		
-		# Use annotation default if provided (prioritize annotation over env), otherwise use env value
-		default_value = annotation.default if annotation.default is not None else value
+		# Use env value if available (prioritize env over annotation), otherwise use annotation default
+		default_value = value
 		
 		kwargs = {
 			'dest': name,
@@ -254,11 +254,8 @@ def build_dynamic_arg_parser(
 		
 		# Handle boolean type specially
 		if annotation.type == 'bool':
-			# Determine default boolean value
-			if annotation.default is not None:
-				default_bool = annotation.default.lower() in ('true', '1', 'yes', 'y')
-			else:
-				default_bool = value.lower() in ('true', '1', 'yes', 'y')
+			# Determine default boolean value - prioritize env over annotation
+			default_bool = value.lower() in ('true', '1', 'yes', 'y')
 			
 			if default_bool:
 				# Default is True, so flag should store_false
@@ -267,11 +264,8 @@ def build_dynamic_arg_parser(
 				help_parts = []
 				if annotation.help:
 					help_parts.append(annotation.help)
-				if annotation.default is not None:
-					if name in [c[0] for c in conflicts]:
-						help_parts.append("(default: true, overriding env)")
-					else:
-						help_parts.append("(default: true)")
+				if name in [c[0] for c in conflicts]:
+					help_parts.append("(default from env: true, overriding annotation)")
 				else:
 					help_parts.append(f"(default from env: {value})")
 				kwargs['help'] = ' '.join(help_parts)
@@ -282,11 +276,8 @@ def build_dynamic_arg_parser(
 				help_parts = []
 				if annotation.help:
 					help_parts.append(annotation.help)
-				if annotation.default is not None:
-					if name in [c[0] for c in conflicts]:
-						help_parts.append("(default: false, overriding env)")
-					else:
-						help_parts.append("(default: false)")
+				if name in [c[0] for c in conflicts]:
+					help_parts.append("(default from env: false, overriding annotation)")
 				else:
 					help_parts.append(f"(default from env: {value})")
 				kwargs['help'] = ' '.join(help_parts)
@@ -299,11 +290,8 @@ def build_dynamic_arg_parser(
 			help_parts = []
 			if annotation.help:
 				help_parts.append(annotation.help)
-			if annotation.default is not None:
-				if name in [c[0] for c in conflicts]:
-					help_parts.append(f"(default: {annotation.default}, overriding env)")
-				else:
-					help_parts.append(f"(default: {annotation.default})")
+			if name in [c[0] for c in conflicts]:
+				help_parts.append(f"(default from env: {value}, overriding annotation)")
 			else:
 				help_parts.append(f"(default from env: {value})")
 			kwargs['help'] = ' '.join(help_parts)

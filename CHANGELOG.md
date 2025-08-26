@@ -17,9 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Handle environment variable default and annotation default conflicts
-  - Annotation defaults now properly override environment variable defaults
+  - Environment variable defaults now properly take precedence over annotation defaults
   - Warning message displayed in --help when conflicts are detected
-  - Help text indicates when annotation default overrides environment value
+  - Help text indicates when environment value overrides annotation default
 - Allow lowercase parameter names in annotation comments
   - Parameter names in Google-style comments are now normalized to uppercase
   - Enables more natural annotation syntax (e.g., `# user_name` for `$USER_NAME`)
