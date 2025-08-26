@@ -4,7 +4,6 @@ Welcome to the Argorator documentation!
 
 ## Quick Links
 
-- [Features Documentation](features/) - Detailed guides for Argorator features
 - [Google-Style Annotations](features/google_style_annotations.md) - Type annotations and help text
 - [Main README](../README.md) - Project overview and quick start
 
@@ -12,10 +11,9 @@ Welcome to the Argorator documentation!
 
 ```
 docs/
-├── README.md           # This file
-└── features/          # Feature-specific documentation
-    ├── README.md      # Features index
-    └── google_style_annotations.md  # Google-style annotations guide
+├── README.md                          # This file
+└── features/                          # Feature-specific documentation
+    └── google_style_annotations.md    # Google-style annotations guide
 ```
 
 ## Getting Started
