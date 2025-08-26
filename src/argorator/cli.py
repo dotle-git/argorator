@@ -72,6 +72,61 @@ def parse_defined_variables(script_text: str) -> Set[str]:
 	return set(assignment_pattern.findall(script_text))
 
 
+def parse_top_level_scalar_assignments(script_text: str) -> Dict[str, str]:
+	"""Parse top-level (non-indented) scalar variable assignments with defaults.
+
+	Only matches lines that start at column 0 (no indentation) to avoid capturing
+ 	assignments inside loops/functions. Captures simple scalar values:
+	- Single or double quoted strings
+	- Unquoted shell words composed of [A-Za-z0-9_./:+-]
+
+	Skips arrays, command substitutions, parameter expansions, and complex RHS.
+	Returns mapping of VARIABLE_NAME -> unquoted default string.
+	"""
+	assignments: Dict[str, str] = {}
+	pattern = re.compile(
+		r"^(?:export\s+|local\s+|declare(?:\s+-[a-zA-Z]+)?\s+|readonly\s+)?"  # optional decl keyword
+		r"([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$",
+		re.MULTILINE,
+	)
+
+	def is_scalar_value(rhs: str) -> bool:
+		text = rhs.strip()
+		if not text:
+			return False
+		# Quoted string
+		if (text[0] == text[-1] == '"') or (text[0] == text[-1] == "'"):
+			return True
+		# Reject arrays/command substitutions/expansions/whitespace
+		if text.startswith("$(") or text.startswith("`") or "$(" in text or "$" in text:
+			return False
+		if text.startswith("(") or ")" in text:
+			return False
+		if any(ch.isspace() for ch in text):
+			return False
+		# Accept safe unquoted shell word
+		return re.fullmatch(r"[A-Za-z0-9_./:+-]+", text) is not None
+
+	for match in pattern.finditer(script_text):
+		# Ensure no indentation by checking the original line start in text
+		line_start = script_text.rfind("\n", 0, match.start()) + 1
+		if line_start < 0:
+			line_start = 0
+		# If the first character on the line is space or tab, skip
+		if line_start < len(script_text) and script_text[line_start:line_start+1] in (" ", "\t"):
+			continue
+		name = match.group(1)
+		raw_value = match.group(2)
+		if not is_scalar_value(raw_value):
+			continue
+		value = raw_value.strip()
+		# Unquote if fully quoted (compare by codepoint to avoid quoting issues)
+		if value and (value[0] == value[-1]) and ord(value[0]) in (34, 39):
+			value = value[1:-1]
+		assignments[name] = value
+	return assignments
+
+
 def parse_variable_usages(script_text: str) -> Set[str]:
 	"""Find variable names referenced by $VAR or ${VAR...} syntax.
 
@@ -129,7 +184,8 @@ def build_dynamic_arg_parser(
 	positional_indices: Set[int], 
 	varargs: bool,
 	annotations: Optional[Dict[str, ArgumentAnnotation]] = None,
-	script_name: Optional[str] = None
+	script_name: Optional[str] = None,
+	defined_defaults: Optional[Dict[str, str]] = None
 ) -> argparse.ArgumentParser:
 	"""Construct an argparse parser for script-specific variables and positionals.
 
@@ -141,6 +197,8 @@ def build_dynamic_arg_parser(
 	"""
 	if annotations is None:
 		annotations = {}
+	if defined_defaults is None:
+		defined_defaults = {}
 	
 	# Detect conflicts between environment defaults and annotation defaults
 	conflicts = []
@@ -153,13 +211,22 @@ def build_dynamic_arg_parser(
 				conflicts.append((name, env_value, annotation_default))
 	
 	# Create custom ArgumentParser to add conflict warnings to help
+	# Also compute conflicts between script defaults and annotation defaults
+	script_conflicts = []
+	for _name, _script_val in defined_defaults.items():
+		_annotation = annotations.get(_name)
+		if _annotation and _annotation.default is not None:
+			if str(_script_val) != str(_annotation.default):
+				script_conflicts.append((_name, _script_val, _annotation.default))
 	class ConflictAwareArgumentParser(argparse.ArgumentParser):
 		def format_help(self):
 			help_text = super().format_help()
-			if conflicts:
+			if conflicts or script_conflicts:
 				warning_lines = ["\nWARNING: Default value conflicts detected:"]
 				for var_name, env_val, ann_val in conflicts:
 					warning_lines.append(f"  {var_name}: environment='{env_val}' vs annotation='{ann_val}' (using environment)")
+				for var_name, script_val, ann_val in script_conflicts:
+					warning_lines.append(f"  {var_name}: script='{script_val}' vs annotation='{ann_val}' (using script)")
 				warning_lines.append("")
 				help_text = help_text + "\n".join(warning_lines)
 			return help_text
@@ -235,6 +302,61 @@ def build_dynamic_arg_parser(
 			if annotation.choices:
 				kwargs['choices'] = annotation.choices
 		
+		parser.add_argument(*arg_names, **kwargs)
+
+	# Options for script-defined defaults (top-level assignments)
+	for name, value in defined_defaults.items():
+		annotation = annotations.get(name, ArgumentAnnotation())
+
+		# Build argument names
+		arg_names = [f"--{name.lower()}"]
+		if annotation.alias:
+			arg_names.insert(0, annotation.alias)  # Put alias first
+
+		default_value = value
+
+		kwargs = {
+			'dest': name,
+			'required': False,
+		}
+
+		# Handle boolean type specially
+		if annotation.type == 'bool':
+			default_bool = str(default_value).lower() in ('true', '1', 'yes', 'y')
+			if default_bool:
+				kwargs['action'] = 'store_false'
+				kwargs['default'] = True
+				help_parts = []
+				if annotation.help:
+					help_parts.append(annotation.help)
+				help_parts.append("(default from script: true)" if name not in [c[0] for c in script_conflicts] else "(default from script: true, overriding annotation)")
+				kwargs['help'] = ' '.join(help_parts)
+			else:
+				kwargs['action'] = 'store_true'
+				kwargs['default'] = False
+				help_parts = []
+				if annotation.help:
+					help_parts.append(annotation.help)
+				help_parts.append("(default from script: false)" if name not in [c[0] for c in script_conflicts] else "(default from script: false, overriding annotation)")
+				kwargs['help'] = ' '.join(help_parts)
+		else:
+			# Non-boolean types
+			kwargs['type'] = get_type_converter(annotation.type)
+			kwargs['default'] = get_type_converter(annotation.type)(default_value)
+
+			# Build help text with default value info
+			help_parts = []
+			if annotation.help:
+				help_parts.append(annotation.help)
+			if name in [c[0] for c in script_conflicts]:
+				help_parts.append(f"(default from script: {value}, overriding annotation)")
+			else:
+				help_parts.append(f"(default from script: {value})")
+			kwargs['help'] = ' '.join(help_parts)
+
+			if annotation.choices:
+				kwargs['choices'] = annotation.choices
+
 		parser.add_argument(*arg_names, **kwargs)
 		
 	for name, value in env_vars.items():
@@ -315,6 +437,8 @@ def inject_variable_assignments(script_text: str, assignments: Dict[str, str]) -
 
 	Assignments are added after the shebang if present; values are shell-quoted.
 	"""
+	if not assignments:
+		return script_text
 	lines = script_text.splitlines()
 	injection_lines = ["# argorator: injected variable definitions"]
 	for name in sorted(assignments.keys()):
@@ -324,6 +448,36 @@ def inject_variable_assignments(script_text: str, assignments: Dict[str, str]) -
 	if lines and lines[0].startswith("#!"):
 		return lines[0] + "\n" + injection_block + "\n".join(lines[1:]) + ("\n" if script_text.endswith("\n") else "")
 	return injection_block + script_text
+
+
+def replace_top_level_assignments(script_text: str, replacements: Dict[str, str]) -> str:
+	"""Replace top-level scalar assignment lines with provided values.
+
+	Preserves any declaration keyword (export/local/declare/readonly) and ensures
+	values are properly shell-quoted. Only replaces lines that are not indented.
+	"""
+	if not replacements:
+		return script_text
+	lines = script_text.splitlines()
+	result_lines: List[str] = []
+	pattern = re.compile(
+		r"^(?P<prefix>(?:export\s+|local\s+|declare(?:\s+-[a-zA-Z]+)?\s+|readonly\s+)?)"
+		r"(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P<value>.*)$"
+	)
+	for line in lines:
+		m = pattern.match(line)
+		if m and not line.startswith("\t") and not line.startswith(" "):
+			name = m.group('name')
+			if name in replacements:
+				prefix = m.group('prefix') or ''
+				new_val = shlex.quote(replacements[name])
+				result_lines.append(f"{prefix}{name}={new_val}")
+				continue
+		result_lines.append(line)
+	text = "\n".join(result_lines)
+	if script_text.endswith("\n") and not text.endswith("\n"):
+		text = text + "\n"
+	return text
 
 
 def generate_export_lines(assignments: Dict[str, str]) -> str:
@@ -415,9 +569,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 	defined_vars, undefined_vars_map, env_vars = determine_variables(script_text)
 	positional_indices, varargs = parse_positional_usages(script_text)
 	annotations = parse_arg_annotations(script_text)
+	# Top-level scalar assignments for defined variables
+	defined_defaults = parse_top_level_scalar_assignments(script_text)
 	# Build dynamic parser
 	undefined_names = sorted(undefined_vars_map.keys())
-	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs, annotations, script_path.name)
+	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs, annotations, script_path.name, defined_defaults)
 	try:
 		dyn_ns = dyn_parser.parse_args(rest_args)
 	except SystemExit as exc:
@@ -454,9 +610,27 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		positional_values.extend([str(v) for v in getattr(dyn_ns, "ARGS", [])])
 	# Prepare outputs per command
 	if command == "export":
-		print(generate_export_lines(assignments))
+		# Include defined variables as well
+		export_map = dict(assignments)
+		# Resolve defined vars from parsed args falling back to script defaults
+		for _name, _default in defined_defaults.items():
+			_val = getattr(dyn_ns, _name, _default)
+			if isinstance(_val, bool):
+				export_map[_name] = "true" if _val else "false"
+			else:
+				export_map[_name] = str(_val)
+		print(generate_export_lines(export_map))
 		return 0
-	modified_text = inject_variable_assignments(script_text, assignments)
+	# Replace top-level defined assignments with provided/implicit values
+	replacements: Dict[str, str] = {}
+	for _name, _default in defined_defaults.items():
+		_val = getattr(dyn_ns, _name, _default)
+		if isinstance(_val, bool):
+			replacements[_name] = "true" if _val else "false"
+		else:
+			replacements[_name] = str(_val)
+	replaced_text = replace_top_level_assignments(script_text, replacements)
+	modified_text = inject_variable_assignments(replaced_text, assignments)
 	if command == "compile":
 		print(modified_text, end="" if modified_text.endswith("\n") else "\n")
 		return 0

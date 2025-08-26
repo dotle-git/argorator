@@ -219,3 +219,39 @@ echo "Hello $USER_NAME on port $PORT_NUMBER"
 	# Run the script - should work with the annotation defaults
 	rc = cli.main([str(script)])
 	assert rc == 0
+
+
+def test_top_level_defined_overridable_defaults_compile_and_run(tmp_path: Path):
+	"""Top-level scalar assignments become overridable with defaults from script."""
+	script_content = """#!/bin/bash
+NAME="World"
+PORT=8080
+echo "Hello $NAME on port $PORT"
+"""
+	script = write_temp_script(tmp_path, script_content)
+
+	# Compile without overrides preserves defaults via replacement
+	rc = cli.main(["compile", str(script)])
+	assert rc == 0
+
+	# Run with overrides via CLI
+	rc = cli.main(["run", str(script), "--name", "Alice", "--port", "9090"])
+	assert rc == 0
+
+	# Export should include resolved defined vars
+	rc = cli.main(["export", str(script), "--name", "Bob"])  # leave PORT default
+	assert rc == 0
+
+
+def test_defined_defaults_help_shows_script_defaults(tmp_path: Path, capsys):
+	script_content = """#!/bin/bash
+DEBUG=false
+TIMEOUT=30
+echo "$DEBUG $TIMEOUT"
+"""
+	script = write_temp_script(tmp_path, script_content)
+	rc = cli.main([str(script), "--help"])
+	assert rc == 0
+	out = capsys.readouterr().out
+	assert "(default from script: false)" in out or "(default from script: true)" in out
+	assert "(default from script: 30)" in out

@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Allow overriding top-level defined variables via CLI
+  - Script-assigned variables at top-level are exposed as optional CLI args
+  - Defaults are taken from the script's assigned value
+  - Indented assignments (e.g., inside loops/functions) are ignored
+  - `compile`/`run` replace those assignments with provided values; `export` prints them
+
 ### Fixed
 - Set parser program name to the script name instead of "cli.py" in help output
 
