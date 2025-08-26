@@ -74,10 +74,10 @@ Mutually exclusive groups ensure that only one argument from a set can be specif
 
 ```bash
 #!/bin/bash
-# VERBOSE (bool) [exclusive_group: Output Mode]: Enable verbose output
-# QUIET (bool) [exclusive_group: Output Mode]: Enable quiet mode  
-# JSON_OUTPUT (bool) [exclusive_group: Format]: Output in JSON format
-# XML_OUTPUT (bool) [exclusive_group: Format]: Output in XML format
+# VERBOSE (bool) [exclusive: Output Mode]: Enable verbose output
+# QUIET (bool) [exclusive: Output Mode]: Enable quiet mode  
+# JSON_OUTPUT (bool) [exclusive: Format]: Output in JSON format
+# XML_OUTPUT (bool) [exclusive: Format]: Output in XML format
 
 if [ "$VERBOSE" = "true" ]; then
     echo "Verbose mode enabled"
@@ -186,13 +186,13 @@ Database:
 
 ```bash
 # VARIABLE (type) [exclusive_group: Group Name]: Description
-# VARIABLE (type) [xgroup: Group Name]: Description          # Shorthand
+# VARIABLE (type) [exclusive: Group Name]: Description          # Shorthand
 ```
 
 - `Group Name`: Any descriptive name for the exclusive group
 - Only one argument from the group can be specified
 - Exclusive group names are case-sensitive
-- `xgroup` is a convenient shorthand for `exclusive_group`
+- `exclusive` is a convenient shorthand for `exclusive_group`
 
 ### Complete Syntax
 
@@ -201,7 +201,7 @@ Groups can be combined with all other annotation features:
 ```bash
 # VARIABLE (type) [alias: -x] [group: Group Name]: Description. Default: value
 # VARIABLE (type) [alias: -x] [exclusive_group: Group Name]: Description. Default: value
-# VARIABLE (type) [alias: -x] [xgroup: Group Name]: Description. Default: value
+# VARIABLE (type) [alias: -x] [exclusive: Group Name]: Description. Default: value
 ```
 
 ## Constraints and Validation

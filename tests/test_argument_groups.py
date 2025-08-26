@@ -60,16 +60,16 @@ def test_parse_exclusive_group_annotations():
 
 
 def test_parse_exclusive_group_shorthand():
-    """Test parsing xgroup shorthand for exclusive groups."""
+    """Test parsing 'exclusive' shorthand for exclusive groups."""
     script = """
-    # VERBOSE (bool) [xgroup: Output Mode]: Enable verbose output
-    # QUIET (bool) [xgroup: Output Mode]: Enable quiet mode  
+    # VERBOSE (bool) [exclusive: Output Mode]: Enable verbose output
+    # QUIET (bool) [exclusive: Output Mode]: Enable quiet mode  
     # DEBUG (bool) [exclusive_group: Debug Mode]: Enable debug mode
-    # TRACE (bool) [xgroup: Debug Mode]: Enable trace mode
+    # TRACE (bool) [exclusive: Debug Mode]: Enable trace mode
     """
     annotations = parse_arg_annotations(script)
     
-    # Test xgroup shorthand
+    # Test exclusive shorthand
     assert "VERBOSE" in annotations
     assert annotations["VERBOSE"].exclusive_group == "Output Mode"
     assert annotations["VERBOSE"].group is None
