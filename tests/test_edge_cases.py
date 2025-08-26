@@ -43,7 +43,7 @@ Hello $NAME
 EOF
 	""",
 	)
-	rc = cli.main(["run", str(script), "--NAME", "World"])  # required by dynamic parser
+	rc = cli.main(["run", str(script), "--name", "World"])  # required by dynamic parser
 	assert rc == 0
 
 
@@ -58,5 +58,5 @@ EOF
 	""",
 	)
 	# Our parser will detect NAME and require it; passing makes it run successfully
-	rc = cli.main(["run", str(script), "--NAME", "Ignored"])  # expansion won't occur because it's quoted
+	rc = cli.main(["run", str(script), "--name", "Ignored"])  # expansion won't occur because it's quoted
 	assert rc == 0

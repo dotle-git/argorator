@@ -47,7 +47,7 @@ def test_parse_positionals_and_varargs():
 
 def test_compile_injects_assignments(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 	script = write_temp_script(tmp_path, SCRIPT_SIMPLE)
-	argv = ["compile", str(script), "--NAME", "Alice"]
+	argv = ["compile", str(script), "--name", "Alice"]
 	rc = cli.main(argv)
 	assert rc == 0
 
@@ -55,7 +55,7 @@ def test_compile_injects_assignments(tmp_path: Path, monkeypatch: pytest.MonkeyP
 def test_export_prints_envs_and_undef(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 	monkeypatch.setenv("HOME", "/tmp/home")
 	script = write_temp_script(tmp_path, "echo $HOME $NAME\n")
-	rc = cli.main(["export", str(script), "--NAME", "X"]) 
+	rc = cli.main(["export", str(script), "--name", "X"]) 
 	assert rc == 0
 
 
@@ -67,5 +67,5 @@ def test_run_executes_and_passes_positionals(tmp_path: Path):
 
 def test_implicit_run_path(tmp_path: Path):
 	script = write_temp_script(tmp_path, SCRIPT_SIMPLE)
-	rc = cli.main([str(script), "--NAME", "Bob"])
+	rc = cli.main([str(script), "--name", "Bob"])
 	assert rc == 0
