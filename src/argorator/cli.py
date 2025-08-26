@@ -123,7 +123,7 @@ def determine_variables(script_text: str) -> Tuple[Set[str], Dict[str, Optional[
 def build_dynamic_arg_parser(undefined_vars: Sequence[str], env_vars: Dict[str, str], positional_indices: Set[int], varargs: bool) -> argparse.ArgumentParser:
 	"""Construct an argparse parser for script-specific variables and positionals.
 
-	- Undefined variables become required options: --VAR
+	- Undefined variables become required options: --var (lowercase)
 	- Env-backed variables become optional with defaults from the environment
 	- Numeric positional references ($1, $2, ...) become positionals ARG1, ARG2, ...
 	- Varargs ($@ or $*) collects remaining args via an ARGS positional with nargs='*'
@@ -131,9 +131,9 @@ def build_dynamic_arg_parser(undefined_vars: Sequence[str], env_vars: Dict[str, 
 	parser = argparse.ArgumentParser(add_help=False)
 	# Options for variables
 	for name in undefined_vars:
-		parser.add_argument(f"--{name}", dest=name, required=True)
+		parser.add_argument(f"--{name.lower()}", dest=name, required=True)
 	for name, value in env_vars.items():
-		parser.add_argument(f"--{name}", dest=name, default=value, required=False)
+		parser.add_argument(f"--{name.lower()}", dest=name, default=value, required=False)
 	# Positional arguments
 	for index in sorted(positional_indices):
 		parser.add_argument(f"ARG{index}")

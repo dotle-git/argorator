@@ -5,13 +5,13 @@ Execute or compile shell scripts with CLI-exposed variables.
 Usage:
 
 ```bash
-argorator <script> [--VAR value ...] [ARG1 ARG2 ...]
-argorator compile <script> [--VAR value ...] [ARG1 ARG2 ...]
-argorator export <script> [--VAR value ...] [ARG1 ARG2 ...]
+argorator <script> [--var value ...] [ARG1 ARG2 ...]
+argorator compile <script> [--var value ...] [ARG1 ARG2 ...]
+argorator export <script> [--var value ...] [ARG1 ARG2 ...]
 ```
 
-- Undefined variables in the script become required `--VAR` options.
-- Variables found only in the environment become optional `--VAR` options with defaults.
+- Undefined variables in the script become required `--var` options (lowercase).
+- Variables found only in the environment become optional `--var` options with defaults.
 - `$1`, `$2`, ... become positional arguments; `$@` or `$*` collect remaining args.
 - `compile` prints the modified script; `export` prints `export VAR=...` lines; default runs the script.
 
@@ -37,13 +37,13 @@ echo "You are $AGE years old."
 
 ```bash
 # Running the script
-$ argorator script.sh --NAME Alice --AGE 25
+$ argorator script.sh --name Alice --age 25
 Hello, Alice!
 You are 25 years old.
 
 # Missing required variable shows error
-$ argorator script.sh --NAME Alice
-error: the following arguments are required: --AGE
+$ argorator script.sh --name Alice
+error: the following arguments are required: --age
 ```
 
 ### Environment Variables with Defaults
@@ -60,13 +60,13 @@ echo "Custom: $CUSTOM_VAR"
 
 ```bash
 # Environment variables can be overridden
-$ argorator script.sh --HOME /custom/home --CUSTOM_VAR test
+$ argorator script.sh --home /custom/home --custom_var test
 Home: /custom/home
 User: [your current user]
 Custom: test
 
 # Or use existing environment values
-$ argorator script.sh --CUSTOM_VAR test
+$ argorator script.sh --custom_var test
 Home: /home/youruser
 User: youruser
 Custom: test
@@ -123,7 +123,7 @@ echo "Starting $SERVICE_NAME on port $PORT"
 
 ```bash
 # Compile with injected variables
-$ argorator compile template.sh --SERVICE_NAME api-server --PORT 3000
+$ argorator compile template.sh --service_name api-server --port 3000
 #!/bin/bash
 SERVICE_NAME="api-server"
 PORT="3000"
@@ -132,7 +132,7 @@ PORT=${PORT:-8080}
 echo "Starting $SERVICE_NAME on port $PORT"
 
 # Redirect to create a new script
-$ argorator compile template.sh --SERVICE_NAME api-server > start-api.sh
+$ argorator compile template.sh --service_name api-server > start-api.sh
 ```
 
 ### Export Mode
@@ -148,13 +148,13 @@ echo "API Key: $API_KEY"
 
 ```bash
 # Generate exports
-$ argorator export config.sh --DB_HOST localhost --DB_PORT 5432 --API_KEY secret123
+$ argorator export config.sh --db_host localhost --db_port 5432 --api_key secret123
 export DB_HOST="localhost"
 export DB_PORT="5432"
 export API_KEY="secret123"
 
 # Use in shell session
-$ eval "$(argorator export config.sh --DB_HOST localhost --DB_PORT 5432 --API_KEY secret123)"
+$ eval "$(argorator export config.sh --db_host localhost --db_port 5432 --api_key secret123)"
 $ echo $DB_HOST
 localhost
 ```
@@ -183,7 +183,7 @@ echo "Additional options: $@"
 ```bash
 # Make executable and run directly
 $ chmod +x deploy.sh
-$ ./deploy.sh --APP_NAME myapp --ENVIRONMENT staging server1.example.com --dry-run --verbose
+$ ./deploy.sh --app_name myapp --environment staging server1.example.com --dry-run --verbose
 Deploying myapp to staging
 Version: latest
 Deploying to server: server1.example.com
@@ -228,15 +228,15 @@ echo "Build complete!"
 
 ```bash
 # Various ways to use the build script
-$ ./build.sh --PROJECT_NAME myproject
-$ ./build.sh --PROJECT_NAME myproject --BUILD_TYPE debug --CLEAN true
-$ ./build.sh --PROJECT_NAME myproject --VERBOSE true lib tests docs
-$ ./build.sh --PROJECT_NAME myproject --OUTPUT_DIR /tmp/build all
+$ ./build.sh --project_name myproject
+$ ./build.sh --project_name myproject --build_type debug --clean true
+$ ./build.sh --project_name myproject --verbose true lib tests docs
+$ ./build.sh --project_name myproject --output_dir /tmp/build all
 ```
 
 ## Tips and Best Practices
 
-1. **Variable Naming**: Use descriptive UPPERCASE names for your variables to make the CLI interface clear.
+1. **Variable Naming**: Use descriptive UPPERCASE names for your variables in the script. They will automatically be converted to lowercase CLI options (e.g., `$DB_HOST` becomes `--db_host`).
 
 2. **Defaults**: Provide defaults using shell parameter expansion: `${VAR:-default}`
 
