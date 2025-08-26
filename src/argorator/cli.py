@@ -6,6 +6,7 @@ either injects definitions and executes, prints the modified script, or prints
 export lines.
 """
 import argparse
+import json
 import os
 import re
 import shlex
@@ -16,6 +17,47 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 
 SPECIAL_VARS: Set[str] = {"@", "*", "#", "?", "$", "!", "0"}
+
+
+def check_json_input_allowed(script_text: str) -> bool:
+	"""Check if the script allows JSON input.
+	
+	Scripts can opt out of JSON input by including the directive comment:
+	# argorator: no-json-input
+	
+	Args:
+		script_text: The script content to check
+		
+	Returns:
+		True if JSON input is allowed, False if opted out
+	"""
+	# Check for opt-out directive
+	directive_pattern = re.compile(r'^\s*#\s*argorator:\s*no-json-input', re.MULTILINE | re.IGNORECASE)
+	return not bool(directive_pattern.search(script_text))
+
+
+def parse_json_input(json_str: str) -> Dict[str, any]:
+	"""Parse JSON input string into a dictionary.
+	
+	The JSON should contain key-value pairs where keys correspond to
+	variable names or positional arguments (ARG1, ARG2, ARGS).
+	
+	Args:
+		json_str: JSON string to parse
+		
+	Returns:
+		Dictionary mapping argument names to values
+		
+	Raises:
+		ValueError: If JSON is invalid
+	"""
+	try:
+		data = json.loads(json_str)
+		if not isinstance(data, dict):
+			raise ValueError("JSON input must be an object")
+		return data
+	except json.JSONDecodeError as e:
+		raise ValueError(f"Invalid JSON input: {e}")
 
 
 def read_text_file(file_path: Path) -> str:
@@ -120,15 +162,78 @@ def determine_variables(script_text: str) -> Tuple[Set[str], Dict[str, Optional[
 	return defined_vars, undefined_vars, env_vars
 
 
-def build_dynamic_arg_parser(undefined_vars: Sequence[str], env_vars: Dict[str, str], positional_indices: Set[int], varargs: bool) -> argparse.ArgumentParser:
+class ArgoratorHelpFormatter(argparse.HelpFormatter):
+	"""Custom help formatter that adds JSON input examples."""
+	
+	def _format_usage(self, usage, actions, groups, prefix):
+		"""Override to add JSON input information to usage."""
+		# Get the default usage
+		usage_text = super()._format_usage(usage, actions, groups, prefix)
+		
+		# Check if JSON input is enabled
+		has_json_input = any(action.dest == 'json_input' for action in actions)
+		if not has_json_input:
+			return usage_text
+		
+		# Add JSON input usage examples
+		prog = self._prog
+		json_usage = f"\n\nAlternatively, parameters can be provided as JSON:\n"
+		json_usage += f"  {prog} --json-input '{{\"name\": \"value\"}}'\n"
+		json_usage += f"  echo '{{\"name\": \"value\"}}' | {prog}"
+		
+		return usage_text.rstrip() + json_usage + "\n"
+
+
+class ArgoratorArgumentParser(argparse.ArgumentParser):
+	"""Custom argument parser that handles JSON input specially."""
+	
+	def __init__(self, *args, **kwargs):
+		self.json_input_allowed = kwargs.pop('json_input_allowed', True)
+		super().__init__(*args, **kwargs)
+	
+	def parse_args(self, args=None, namespace=None):
+		"""Override to handle JSON input before checking required arguments."""
+		# Check if --json-input is present in args
+		if args and self.json_input_allowed and '--json-input' in args:
+			# Create a copy of actions and make them all not required temporarily
+			original_required = {}
+			for action in self._actions:
+				if action.required:
+					original_required[action] = True
+					action.required = False
+			
+			try:
+				# Parse with all arguments optional
+				namespace = super().parse_args(args, namespace)
+				# Restore required flags
+				for action, was_required in original_required.items():
+					action.required = was_required
+				return namespace
+			except SystemExit:
+				# Restore required flags even on error
+				for action, was_required in original_required.items():
+					action.required = was_required
+				raise
+		else:
+			return super().parse_args(args, namespace)
+
+
+def build_dynamic_arg_parser(undefined_vars: Sequence[str], env_vars: Dict[str, str], positional_indices: Set[int], varargs: bool, json_input_allowed: bool = True) -> argparse.ArgumentParser:
 	"""Construct an argparse parser for script-specific variables and positionals.
 
 	- Undefined variables become required options: --var (lowercase)
 	- Env-backed variables become optional with defaults from the environment
 	- Numeric positional references ($1, $2, ...) become positionals ARG1, ARG2, ...
 	- Varargs ($@ or $*) collects remaining args via an ARGS positional with nargs='*'
+	- If json_input_allowed, adds --json-input option for JSON parameter input
 	"""
-	parser = argparse.ArgumentParser(add_help=True)
+	parser = ArgoratorArgumentParser(add_help=True, formatter_class=ArgoratorHelpFormatter, json_input_allowed=json_input_allowed)
+	
+	# Add JSON input option if allowed
+	if json_input_allowed:
+		parser.add_argument("--json-input", type=str, metavar="JSON",
+			help="Provide parameters as a JSON object (can also be piped via stdin)")
+	
 	# Options for variables
 	for name in undefined_vars:
 		parser.add_argument(f"--{name.lower()}", dest=name, required=True)
@@ -249,19 +354,67 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 	positional_indices, varargs = parse_positional_usages(script_text)
 	# Build dynamic parser
 	undefined_names = sorted(undefined_vars_map.keys())
-	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs)
-	try:
-		dyn_ns = dyn_parser.parse_args(rest_args)
-	except SystemExit as exc:
-		return int(exc.code)
+	json_input_allowed = check_json_input_allowed(script_text)
+	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs, json_input_allowed)
+	
+	# Check if JSON input is provided via stdin first
+	json_data = {}
+	json_from_stdin = False
+	if json_input_allowed and not sys.stdin.isatty() and not rest_args:
+		# Try to read JSON from stdin if no args provided
+		try:
+			stdin_data = sys.stdin.read()
+			if stdin_data.strip():
+				json_data = parse_json_input(stdin_data)
+				json_from_stdin = True
+		except ValueError as e:
+			print(f"error: failed to parse stdin as JSON: {e}", file=sys.stderr)
+			return 2
+	
+	# Parse arguments, but handle JSON input specially
+	if json_from_stdin:
+		# Create a minimal namespace with just the JSON data
+		dyn_ns = argparse.Namespace()
+	else:
+		try:
+			dyn_ns = dyn_parser.parse_args(rest_args)
+		except SystemExit as exc:
+			return int(exc.code)
+		
+		# Handle JSON input if provided via --json-input
+		if json_input_allowed and hasattr(dyn_ns, 'json_input') and dyn_ns.json_input:
+			try:
+				json_data = parse_json_input(dyn_ns.json_input)
+			except ValueError as e:
+				print(f"error: {e}", file=sys.stderr)
+				return 2
+	
+	# Apply JSON data to namespace
+	if json_data:
+		for key, value in json_data.items():
+			# Convert lowercase keys to match variable names
+			# Handle both lowercase (--name) and uppercase (NAME) formats
+			attr_name = key
+			# Check if this is a known variable name
+			if key.upper() in undefined_names or key.upper() in env_vars:
+				attr_name = key.upper()
+			elif key in undefined_names or key in env_vars:
+				attr_name = key
+			# Handle positional arguments (ARG1, ARG2, ARGS)
+			elif key.upper().startswith('ARG') or key == 'ARGS' or key.upper() == 'ARGS':
+				attr_name = key.upper()
+			
+			setattr(dyn_ns, attr_name, value)
+	
 	# Collect resolved variable assignments
 	assignments: Dict[str, str] = {}
 	for name in undefined_names:
 		value = getattr(dyn_ns, name, None)
-		if value is None:
-			print(f"error: missing required --{name}", file=sys.stderr)
+		if value is None and not json_data:
+			print(f"error: missing required --{name.lower()}", file=sys.stderr)
 			return 2
-		assignments[name] = str(value)
+		elif value is not None:
+			assignments[name] = str(value)
 	for name in env_vars.keys():
 		value = getattr(dyn_ns, name, env_vars[name])
 		assignments[name] = str(value)
@@ -270,12 +423,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 	for index in sorted(positional_indices):
 		attr = f"ARG{index}"
 		value = getattr(dyn_ns, attr, None)
-		if value is None:
+		if value is None and not json_data:
 			print(f"error: missing positional argument ${index}", file=sys.stderr)
 			return 2
-		positional_values.append(str(value))
+		elif value is not None:
+			positional_values.append(str(value))
 	if varargs:
-		positional_values.extend([str(v) for v in getattr(dyn_ns, "ARGS", [])])
+		args_value = getattr(dyn_ns, "ARGS", [])
+		if args_value:
+			positional_values.extend([str(v) for v in args_value])
 	# Prepare outputs per command
 	if command == "export":
 		print(generate_export_lines(assignments))

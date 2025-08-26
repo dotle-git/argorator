@@ -47,6 +47,11 @@ optional arguments:
 $ argorator deploy.sh --service api --environment prod --version v1.2.3
 Deploying api to prod
 Version: v1.2.3
+
+# Or use JSON input
+$ argorator deploy.sh --json-input '{"service": "api", "environment": "prod", "version": "v1.2.3"}'
+Deploying api to prod
+Version: v1.2.3
 ```
 
 That's it! No modifications needed to your script.
@@ -184,6 +189,35 @@ Processing files:
 ```
 
 ## 🛠️ Advanced Usage
+
+### JSON Input
+
+Provide all parameters as a JSON object instead of individual arguments:
+
+```bash
+# Via --json-input option
+$ argorator script.sh --json-input '{"name": "Alice", "age": 30, "city": "NYC"}'
+
+# Via stdin (useful for automation)
+$ echo '{"name": "Bob", "age": 25}' | argorator script.sh
+
+# From a file
+$ argorator script.sh --json-input "$(cat params.json)"
+```
+
+This is especially useful for:
+- Automation and CI/CD pipelines
+- Configuration management
+- Programmatic script execution
+
+Scripts can opt out of JSON input by adding a directive comment:
+
+```bash
+#!/bin/bash
+# argorator: no-json-input
+
+echo "This script doesn't accept JSON input"
+```
 
 ### Compile Mode
 
