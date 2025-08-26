@@ -10,10 +10,7 @@ nav_order: 2
 
 Argorator supports organizing related command-line arguments into groups for better help organization and creating mutually exclusive argument sets. This feature enhances the user experience by logically grouping related options and enforcing constraints where only one option from a set should be used.
 
-Argorator offers two syntax styles for defining groups:
-
-1. **Natural Language Syntax** - Intuitive English-like declarations (recommended)
-2. **Individual Annotation Syntax** - Per-variable bracket annotations (legacy)
+Argorator uses natural language syntax for defining groups, making it intuitive and easy to read.
 
 ## Table of Contents
 
@@ -21,14 +18,13 @@ Argorator offers two syntax styles for defining groups:
 - [Regular Argument Groups](#regular-argument-groups)
 - [Mutually Exclusive Groups](#mutually-exclusive-groups)
 - [Mixed Groups Example](#mixed-groups-example)
-- [Individual Annotation Syntax](#individual-annotation-syntax)
 - [Syntax Reference](#syntax-reference)
 - [Constraints and Validation](#constraints-and-validation)
 - [Integration with Other Features](#integration-with-other-features)
 
 ## Natural Language Syntax
 
-The recommended way to define groups is using natural English-like declarations that are easy to read and write.
+Define groups using intuitive English-like declarations that are easy to read and write.
 
 ### Basic Syntax
 
@@ -256,39 +252,11 @@ Database:
   --db_port DB_PORT     Database port (default: 5432)
 ```
 
-## Individual Annotation Syntax
 
-You can also define groups using per-variable bracket annotations. This is the legacy syntax that's still fully supported.
-
-### Regular Groups
-
-```bash
-# VARIABLE (type) [group: Group Name]: Description
-```
-
-### Mutually Exclusive Groups
-
-```bash
-# VARIABLE (type) [exclusive_group: Group Name]: Description
-# VARIABLE (type) [exclusive: Group Name]: Description          # Shorthand
-```
-
-### Example
-
-```bash
-#!/bin/bash
-# VERBOSE (bool) [exclusive: Output Mode]: Enable verbose output  
-# QUIET (bool) [exclusive: Output Mode]: Enable quiet mode
-# SERVER_HOST (str) [group: Server]: Server hostname
-# SERVER_PORT (int) [group: Server]: Server port
-
-echo "Server: $SERVER_HOST:$SERVER_PORT"
-echo "Verbose: $VERBOSE, Quiet: $QUIET"
-```
 
 ## Syntax Reference
 
-### Natural Language (Recommended)
+### Natural Language Syntax
 
 ```bash
 # group VAR1, VAR2, VAR3 as Group Name         # Regular group
@@ -297,17 +265,9 @@ echo "Verbose: $VERBOSE, Quiet: $QUIET"
 # one of VAR1, VAR2                            # Auto-named exclusive group
 ```
 
-### Individual Annotations (Legacy)
-
-```bash
-# VARIABLE (type) [group: Group Name]: Description
-# VARIABLE (type) [exclusive_group: Group Name]: Description
-# VARIABLE (type) [exclusive: Group Name]: Description          # Shorthand
-```
-
 ### Complete Syntax
 
-Both syntax styles can be combined with all other annotation features:
+Natural language groups work with all other annotation features:
 
 ```bash
 # Natural language groups (defined once)

@@ -118,22 +118,7 @@ def test_parse_combined_natural_and_individual():
     assert annotations["CONFIG_FILE"].help == "Configuration file path"
 
 
-def test_bracket_syntax_overrides_natural():
-    """Test that bracket syntax takes precedence over natural language groups."""
-    script = """
-    # group SERVER_HOST, SERVER_PORT as Server
-    
-    # SERVER_HOST (str) [group: Database]: Server hostname
-    # SERVER_PORT (int) [exclusive: Network]: Server port
-    """
-    annotations = parse_arg_annotations(script)
-    
-    # Bracket syntax should override natural language
-    assert annotations["SERVER_HOST"].group == "Database"
-    assert annotations["SERVER_HOST"].exclusive_group is None
-    
-    assert annotations["SERVER_PORT"].exclusive_group == "Network"
-    assert annotations["SERVER_PORT"].group is None
+
 
 
 def test_variables_only_in_groups():

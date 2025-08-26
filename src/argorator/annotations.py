@@ -56,6 +56,8 @@ def parse_group_declarations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 		# Create annotations for each variable
 		for var in variables:
 			if var:  # Skip empty strings
+				if var in group_annotations:
+					raise ValueError(f"Variable '{var}' is already in a group. Variables cannot be in multiple groups.")
 				group_annotations[var] = ArgumentAnnotation(group=group_name)
 	
 	# Parse exclusive groups  
@@ -75,6 +77,8 @@ def parse_group_declarations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 		# Create annotations for each variable
 		for var in variables:
 			if var:  # Skip empty strings
+				if var in group_annotations:
+					raise ValueError(f"Variable '{var}' is already in a group. Variables cannot be in multiple groups.")
 				group_annotations[var] = ArgumentAnnotation(exclusive_group=group_name)
 	
 	return group_annotations
@@ -87,11 +91,8 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 	- # VAR_NAME (type): Description. Default: default_value
 	- # VAR_NAME: Description (type defaults to str)
 	- # VAR_NAME (type) [alias: -x]: Description
-	- # VAR_NAME (type) [group: group_name]: Description
-	- # VAR_NAME (type) [exclusive_group: group_name]: Description
-	- # VAR_NAME (type) [exclusive: group_name]: Description (shorthand for exclusive_group)
 	
-	And the new natural language syntax:
+	Natural language group syntax:
 	- # group VAR1, VAR2, VAR3 as GroupName
 	- # one of VAR1, VAR2 as GroupName
 	
@@ -134,10 +135,8 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 		description = match.group(5).strip()
 		default = match.group(6)
 		
-		# Parse all bracket annotations
+		# Parse bracket annotations (only alias now)
 		alias = None
-		group = None
-		exclusive_group = None
 		
 		if annotations_str:
 			# Find all [key: value] patterns
@@ -148,10 +147,6 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 				
 				if key == 'alias':
 					alias = value
-				elif key == 'group':
-					group = value
-				elif key in ('exclusive_group', 'exclusive'):  # Support both full and shorthand
-					exclusive_group = value
 		
 		# Normalize type
 		if var_type.lower() in ('string', 'str'):
@@ -182,15 +177,6 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 			
 		if alias:
 			annotation_data['alias'] = alias.strip()
-		
-		# Override with bracket annotations if present (bracket syntax takes precedence)
-		if group:
-			annotation_data['group'] = group.strip()
-			annotation_data['exclusive_group'] = None  # Can't be in both
-			
-		if exclusive_group:
-			annotation_data['exclusive_group'] = exclusive_group.strip()
-			annotation_data['group'] = None  # Can't be in both
 		
 		# Create ArgumentAnnotation model
 		annotations[var_name] = ArgumentAnnotation(**annotation_data)
