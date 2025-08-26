@@ -25,32 +25,31 @@ This document explains how the Argorator documentation site is configured using 
 
 ## Local Development
 
-To test the documentation site locally:
+To test the documentation site locally, you have two options:
 
-1. **Install Ruby and Bundler** (if not already installed):
-   ```bash
-   # On macOS with Homebrew
-   brew install ruby
-   
-   # On Ubuntu/Debian
-   sudo apt-get install ruby-full build-essential zlib1g-dev
-   
-   # Install Bundler
-   gem install bundler
-   ```
+### Option 1: With Gemfile (Recommended)
+Create a `Gemfile` with GitHub Pages dependencies:
+```ruby
+source "https://rubygems.org"
+gem "github-pages", group: :jekyll_plugins
+```
 
-2. **Install dependencies**:
-   ```bash
-   bundle install
-   ```
+Then:
+```bash
+bundle install
+bundle exec jekyll serve
+```
 
-3. **Run the local server**:
-   ```bash
-   bundle exec jekyll serve
-   ```
+### Option 2: Direct Jekyll Installation
+```bash
+# Install Jekyll directly
+gem install jekyll bundler
 
-4. **View the site**:
-   Open http://localhost:4000/argorator in your browser
+# Serve the site (may have version differences from GitHub Pages)
+jekyll serve --baseurl /argorator
+```
+
+**View the site**: Open http://localhost:4000/argorator in your browser
 
 ## GitHub Pages Configuration
 
@@ -59,7 +58,7 @@ The site is automatically deployed via GitHub Actions when changes are pushed to
 ### Key Configuration Files
 
 - **`_config.yml`**: Jekyll configuration with site metadata, theme, and navigation
-- **`Gemfile`**: Ruby dependencies compatible with GitHub Pages
+- **`Gemfile`**: (Optional) Ruby dependencies for local development
 - **`.github/workflows/pages.yml`**: Automated deployment workflow
 
 ### Theme and Features
