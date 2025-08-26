@@ -1,246 +1,195 @@
-# Argorator
+# Argorator 🎯
 
-Execute or compile shell scripts with CLI-exposed variables.
+[![PyPI version](https://badge.fury.io/py/argorator.svg)](https://badge.fury.io/py/argorator)
+[![Python](https://img.shields.io/pypi/pyversions/argorator.svg)](https://pypi.org/project/argorator/)
+[![Tests](https://github.com/dotle/argorator/actions/workflows/tests.yml/badge.svg)](https://github.com/dotle/argorator/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Usage:
+**Transform any shell script into a fully-featured command-line tool with zero effort.**
+
+Argorator automatically converts your shell scripts' variables and positional arguments into a proper CLI interface with `--help`, argument validation, and type conversion - all without modifying your original script.
+
+## 📦 Installation
 
 ```bash
-argorator <script> [--var value ...] [ARG1 ARG2 ...]
-argorator compile <script> [--var value ...] [ARG1 ARG2 ...]
-argorator export <script> [--var value ...] [ARG1 ARG2 ...]
+pip install argorator
 ```
 
-- Undefined variables in the script become required `--var` options (lowercase).
-- Variables found only in the environment become optional `--var` options with defaults.
-- `$1`, `$2`, ... become positional arguments; `$@` or `$*` collect remaining args.
-- `compile` prints the modified script; `export` prints `export VAR=...` lines; default runs the script.
+Or with [pipx](https://pypa.github.com/pipx/) (recommended for global installation):
 
-Shebang:
+```bash
+pipx install argorator
+```
 
-```sh
+## 🎯 Quick Start
+
+Take any shell script with variables:
+
+```bash
+# deploy.sh
+#!/bin/bash
+echo "Deploying $SERVICE to $ENVIRONMENT"
+echo "Version: $VERSION"
+```
+
+Run it with Argorator:
+
+```bash
+$ argorator deploy.sh --help
+usage: argorator deploy.sh [-h] --service SERVICE --environment ENVIRONMENT --version VERSION
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --service SERVICE
+  --environment ENVIRONMENT
+  --version VERSION
+
+$ argorator deploy.sh --service api --environment prod --version v1.2.3
+Deploying api to prod
+Version: v1.2.3
+```
+
+That's it! No modifications needed to your script.
+
+## 🚀 Direct Execution with Shebang
+
+Make your scripts directly executable:
+
+```bash
 #!/usr/bin/env argorator
-# your script follows
+# deploy-service.sh
+
+echo "🚀 Deploying $SERVICE_NAME to $ENVIRONMENT"
+echo "📦 Version: ${VERSION:-latest}"
+
+if [ "$DRY_RUN" = "true" ]; then
+    echo "🔍 DRY RUN - No changes will be made"
+fi
+
+echo "✅ Deployment complete!"
 ```
 
-## Examples
+```bash
+$ chmod +x deploy-service.sh
+$ ./deploy-service.sh --service-name api --environment staging --dry-run true
+🚀 Deploying api to staging
+📦 Version: latest
+🔍 DRY RUN - No changes will be made
+✅ Deployment complete!
+```
 
-### Basic Usage: Undefined Variables
+## 📚 Core Features
 
-When your script uses undefined variables, they become required CLI options:
+### 1. Automatic Variable Detection
+
+Undefined variables in your script become **required** CLI arguments:
 
 ```bash
-# script.sh
-#!/bin/bash
+# greet.sh
 echo "Hello, $NAME!"
-echo "You are $AGE years old."
+echo "You are $AGE years old"
 ```
 
 ```bash
-# Running the script
-$ argorator script.sh --name Alice --age 25
+$ argorator greet.sh --name Alice --age 30
 Hello, Alice!
-You are 25 years old.
-
-# Missing required variable shows error
-$ argorator script.sh --name Alice
-error: the following arguments are required: --age
+You are 30 years old
 ```
 
-### Environment Variables with Defaults
+### 2. Environment Variable Defaults
 
-Variables that exist in your environment become optional CLI options:
+Variables that exist in your environment become **optional** arguments with defaults:
 
 ```bash
-# script.sh
-#!/bin/bash
+# show-env.sh
 echo "Home: $HOME"
 echo "User: $USER"
 echo "Custom: $CUSTOM_VAR"
 ```
 
 ```bash
-# Environment variables can be overridden
-$ argorator script.sh --home /custom/home --custom_var test
-Home: /custom/home
-User: [your current user]
-Custom: test
-
-# Or use existing environment values
-$ argorator script.sh --custom_var test
-Home: /home/youruser
-User: youruser
+$ argorator show-env.sh --custom-var "test"
+Home: /home/yourusername
+User: yourusername
 Custom: test
 ```
 
-### Positional Arguments
+### 3. Positional Arguments
 
-Scripts using `$1`, `$2`, etc. accept positional arguments:
+Scripts using `$1`, `$2`, etc. automatically accept positional arguments:
 
 ```bash
-# greet.sh
+# backup.sh
 #!/bin/bash
-echo "Hello $1!"
-echo "Your message: $2"
+echo "Backing up $1 to $2"
+echo "Compression: ${COMPRESSION:-gzip}"
 ```
 
 ```bash
-$ argorator greet.sh World "Have a nice day"
-Hello World!
-Your message: Have a nice day
+$ argorator backup.sh /data /backups --compression bzip2
+Backing up /data to /backups
+Compression: bzip2
 ```
 
-### Variable Arguments with $@ or $*
+### 4. Variable Arguments with `$@`
 
-Use `$@` or `$*` to collect remaining arguments:
+Collect multiple arguments using `$@` or `$*`:
 
 ```bash
-# process.sh
+# process-files.sh
 #!/bin/bash
-echo "Command: $1"
-echo "Options: $2"
-shift 2
-echo "Files to process: $@"
+echo "Processing files:"
+for file in "$@"; do
+    echo "  - $file"
+done
 ```
 
 ```bash
-$ argorator process.sh build --verbose file1.txt file2.txt file3.txt
-Command: build
-Options: --verbose
-Files to process: file1.txt file2.txt file3.txt
+$ argorator process-files.sh doc1.txt doc2.txt doc3.txt
+Processing files:
+  - doc1.txt
+  - doc2.txt
+  - doc3.txt
 ```
+
+## 🛠️ Advanced Usage
 
 ### Compile Mode
 
-Generate the modified script without executing it:
+Generate a standalone script with variables pre-filled:
 
 ```bash
-# template.sh
-#!/bin/bash
-SERVICE_NAME=$SERVICE_NAME
-PORT=${PORT:-8080}
-echo "Starting $SERVICE_NAME on port $PORT"
-```
-
-```bash
-# Compile with injected variables
-$ argorator compile template.sh --service_name api-server --port 3000
-#!/bin/bash
-SERVICE_NAME="api-server"
-PORT="3000"
-SERVICE_NAME=$SERVICE_NAME
-PORT=${PORT:-8080}
-echo "Starting $SERVICE_NAME on port $PORT"
-
-# Redirect to create a new script
-$ argorator compile template.sh --service_name api-server > start-api.sh
+$ argorator compile script.sh --var value > compiled.sh
 ```
 
 ### Export Mode
 
-Generate export statements for use in shell environments:
+Generate shell export statements:
 
 ```bash
-# config.sh
-#!/bin/bash
-echo "Database: $DB_HOST:$DB_PORT"
-echo "API Key: $API_KEY"
+$ eval "$(argorator export script.sh --var value)"
 ```
 
-```bash
-# Generate exports
-$ argorator export config.sh --db_host localhost --db_port 5432 --api_key secret123
-export DB_HOST="localhost"
-export DB_PORT="5432"
-export API_KEY="secret123"
+## 🔧 How It Works
 
-# Use in shell session
-$ eval "$(argorator export config.sh --db_host localhost --db_port 5432 --api_key secret123)"
-$ echo $DB_HOST
-localhost
-```
+1. **Script Analysis**: Argorator parses your shell script to identify variables and positional arguments
+2. **CLI Generation**: Creates an argparse interface with appropriate options
+3. **Script Execution**: Injects variable definitions and runs your script
 
-### Using Argorator as Shebang
+## 📋 Requirements
 
-Make scripts directly executable with argument handling:
-
-```bash
-# deploy.sh
-#!/usr/bin/env argorator
-# Script to deploy an application
-
-echo "Deploying $APP_NAME to $ENVIRONMENT"
-echo "Version: ${VERSION:-latest}"
-
-if [ "$ENVIRONMENT" = "production" ]; then
-    echo "🚨 Production deployment - be careful!"
-fi
-
-echo "Deploying to server: $1"
-shift
-echo "Additional options: $@"
-```
-
-```bash
-# Make executable and run directly
-$ chmod +x deploy.sh
-$ ./deploy.sh --app_name myapp --environment staging server1.example.com --dry-run --verbose
-Deploying myapp to staging
-Version: latest
-Deploying to server: server1.example.com
-Additional options: --dry-run --verbose
-```
-
-### Complex Example: Build Script
-
-```bash
-# build.sh
-#!/usr/bin/env argorator
-# Build script with multiple options
-
-set -e  # Exit on error
-
-echo "Building $PROJECT_NAME"
-echo "Build type: ${BUILD_TYPE:-release}"
-echo "Output directory: ${OUTPUT_DIR:-./build}"
-
-# Use positional arguments for build targets
-if [ $# -eq 0 ]; then
-    TARGETS="all"
-else
-    TARGETS="$@"
-fi
-
-echo "Building targets: $TARGETS"
-
-# Conditional logic based on variables
-if [ "$CLEAN" = "true" ]; then
-    echo "Cleaning build directory..."
-    rm -rf "${OUTPUT_DIR:-./build}"
-fi
-
-if [ "$VERBOSE" = "true" ]; then
-    echo "Verbose mode enabled"
-    set -x
-fi
-
-echo "Build complete!"
-```
-
-```bash
-# Various ways to use the build script
-$ ./build.sh --project_name myproject
-$ ./build.sh --project_name myproject --build_type debug --clean true
-$ ./build.sh --project_name myproject --verbose true lib tests docs
-$ ./build.sh --project_name myproject --output_dir /tmp/build all
-```
-
-## Installation
-
-```bash
-pip install argorator
-```
-
-## Requirements
-
-- Python 3.8+
+- Python 3.9+
 - Unix-like operating system (Linux, macOS, WSL)
+- Bash or compatible shell
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
