@@ -19,12 +19,15 @@ SPECIAL_VARS: Set[str] = {"@", "*", "#", "?", "$", "!", "0"}
 
 
 def parse_arg_annotations(script_text: str) -> Dict[str, Dict[str, str]]:
-	"""Parse comment-based annotations for argument metadata.
+	"""Parse comment-based annotations for argument metadata using docstring style.
 	
-	Supports the following comment formats:
-	- # @arg VAR_NAME: type - description
-	- # @arg VAR_NAME: type[choices] - description
-	- # @arg VAR_NAME - description (type defaults to string)
+	Supports the following docstring-style formats:
+	- # :param VAR_NAME: description
+	- # :type VAR_NAME: type_name
+	- # :choices VAR_NAME: choice1, choice2, choice3
+	
+	Or combined format:
+	- # :param type VAR_NAME: description
 	
 	Args:
 		script_text: The full script content
@@ -33,33 +36,74 @@ def parse_arg_annotations(script_text: str) -> Dict[str, Dict[str, str]]:
 		Dict mapping variable names to metadata dicts with 'type', 'help', and optionally 'choices'
 	"""
 	annotations = {}
-	# Match @arg annotations with optional type and description
-	pattern = re.compile(
-		r'^\s*#\s*@arg\s+'
+	
+	# Parse :param entries for descriptions
+	param_pattern = re.compile(
+		r'^\s*#\s*:param\s+'
+		r'(?:(bool|int|float|str|string)\s+)?'  # Optional inline type
 		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name
-		r'(?:\s*:\s*'  # Optional type section
-		r'(bool|int|float|string|choice)'  # Type
-		r'(?:\[([^\]]+)\])?'  # Optional choices for choice type
-		r')?'
-		r'(?:\s*-\s*(.+))?',  # Optional description
+		r'\s*:\s*(.+)',  # Description
 		re.MULTILINE
 	)
 	
-	for match in pattern.finditer(script_text):
+	# Parse :type entries for types
+	type_pattern = re.compile(
+		r'^\s*#\s*:type\s+'
+		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name
+		r'\s*:\s*'
+		r'(bool|int|float|str|string|choice)',  # Type
+		re.MULTILINE
+	)
+	
+	# Parse :choices entries for choice options
+	choices_pattern = re.compile(
+		r'^\s*#\s*:choices\s+'
+		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name
+		r'\s*:\s*(.+)',  # Comma-separated choices
+		re.MULTILINE
+	)
+	
+	# First pass: collect all param entries
+	for match in param_pattern.finditer(script_text):
+		inline_type = match.group(1)
+		var_name = match.group(2)
+		description = match.group(3).strip()
+		
+		if var_name not in annotations:
+			annotations[var_name] = {}
+		
+		annotations[var_name]['help'] = description
+		if inline_type:
+			annotations[var_name]['type'] = inline_type if inline_type != 'string' else 'str'
+	
+	# Second pass: collect type entries
+	for match in type_pattern.finditer(script_text):
 		var_name = match.group(1)
-		var_type = match.group(2) or 'string'
-		choices = match.group(3)
-		description = match.group(4) or ''
+		var_type = match.group(2)
 		
-		metadata = {
-			'type': var_type,
-			'help': description.strip()
-		}
+		if var_name not in annotations:
+			annotations[var_name] = {}
 		
-		if var_type == 'choice' and choices:
-			metadata['choices'] = [c.strip() for c in choices.split(',')]
-			
-		annotations[var_name] = metadata
+		# Normalize 'string' to 'str' for consistency
+		annotations[var_name]['type'] = var_type if var_type != 'string' else 'str'
+	
+	# Third pass: collect choices
+	for match in choices_pattern.finditer(script_text):
+		var_name = match.group(1)
+		choices_str = match.group(2)
+		
+		if var_name not in annotations:
+			annotations[var_name] = {}
+		
+		annotations[var_name]['choices'] = [c.strip() for c in choices_str.split(',')]
+		# If choices are specified, default type to 'choice' if not already set
+		if 'type' not in annotations[var_name]:
+			annotations[var_name]['type'] = 'choice'
+	
+	# Set default type for entries without explicit type
+	for var_name, metadata in annotations.items():
+		if 'type' not in metadata:
+			metadata['type'] = 'str'
 	
 	return annotations
 
@@ -194,7 +238,7 @@ def build_dynamic_arg_parser(
 			return float
 		elif type_str == 'bool':
 			return lambda x: x.lower() in ('true', '1', 'yes', 'y')
-		else:  # string or choice
+		else:  # str, string or choice
 			return str
 	
 	# Options for variables
@@ -355,9 +399,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 	# Parse script
 	defined_vars, undefined_vars_map, env_vars = determine_variables(script_text)
 	positional_indices, varargs = parse_positional_usages(script_text)
+	annotations = parse_arg_annotations(script_text)
 	# Build dynamic parser
 	undefined_names = sorted(undefined_vars_map.keys())
-	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs, undefined_vars_map)
+	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs, annotations)
 	try:
 		dyn_ns = dyn_parser.parse_args(rest_args)
 	except SystemExit as exc:
@@ -368,11 +413,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		value = getattr(dyn_ns, name, None)
 		if value is None:
 			print(f"error: missing required --{name}", file=sys.stderr)
-			return 2
-		assignments[name] = str(value)
-	for name in env_vars.keys():
-		value = getattr(dyn_ns, name, env_vars[name])
-		assignments[name] = str(value)
+			return 1
+		# Convert boolean values to lowercase string for shell compatibility
+		if isinstance(value, bool):
+			assignments[name] = "true" if value else "false"
+		else:
+			assignments[name] = str(value)
+	for name, env_value in env_vars.items():
+		value = getattr(dyn_ns, name, env_value)
+		# Convert boolean values to lowercase string for shell compatibility
+		if isinstance(value, bool):
+			assignments[name] = "true" if value else "false"
+		else:
+			assignments[name] = str(value)
 	# Collect positional args for shell invocation
 	positional_values: List[str] = []
 	for index in sorted(positional_indices):
