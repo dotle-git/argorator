@@ -9,16 +9,6 @@
 
 Argorator automatically converts your shell scripts' variables and positional arguments into a proper CLI interface with `--help`, argument validation, and type conversion - all without modifying your original script.
 
-## 🚀 Why Argorator?
-
-Have you ever wanted to:
-- Share a shell script with your team but worried about hardcoded values?
-- Convert environment variables into command-line options automatically?
-- Add proper CLI argument parsing to a script without rewriting it in Python?
-- Make your deployment scripts more user-friendly with `--help` documentation?
-
-Argorator does all of this automatically by analyzing your script and creating a proper CLI interface on the fly.
-
 ## 📦 Installation
 
 ```bash
@@ -61,6 +51,33 @@ Version: v1.2.3
 
 That's it! No modifications needed to your script.
 
+## 🚀 Direct Execution with Shebang
+
+Make your scripts directly executable:
+
+```bash
+#!/usr/bin/env argorator
+# deploy-service.sh
+
+echo "🚀 Deploying $SERVICE_NAME to $ENVIRONMENT"
+echo "📦 Version: ${VERSION:-latest}"
+
+if [ "$DRY_RUN" = "true" ]; then
+    echo "🔍 DRY RUN - No changes will be made"
+fi
+
+echo "✅ Deployment complete!"
+```
+
+```bash
+$ chmod +x deploy-service.sh
+$ ./deploy-service.sh --service-name api --environment staging --dry-run true
+🚀 Deploying api to staging
+📦 Version: latest
+🔍 DRY RUN - No changes will be made
+✅ Deployment complete!
+```
+
 ## 📚 Core Features
 
 ### 1. Automatic Variable Detection
@@ -95,12 +112,6 @@ $ argorator show-env.sh --custom-var "test"
 Home: /home/yourusername
 User: yourusername
 Custom: test
-
-# Override environment variables
-$ argorator show-env.sh --home /tmp --user root --custom-var "test"
-Home: /tmp
-User: root
-Custom: test
 ```
 
 ### 3. Positional Arguments
@@ -127,17 +138,15 @@ Collect multiple arguments using `$@` or `$*`:
 ```bash
 # process-files.sh
 #!/bin/bash
-COMMAND=$1
-shift
-echo "Running $COMMAND on files:"
+echo "Processing files:"
 for file in "$@"; do
     echo "  - $file"
 done
 ```
 
 ```bash
-$ argorator process-files.sh compress doc1.txt doc2.txt doc3.txt
-Running compress on files:
+$ argorator process-files.sh doc1.txt doc2.txt doc3.txt
+Processing files:
   - doc1.txt
   - doc2.txt
   - doc3.txt
@@ -150,183 +159,22 @@ Running compress on files:
 Generate a standalone script with variables pre-filled:
 
 ```bash
-# template.sh
-#!/bin/bash
-SERVICE=${SERVICE}
-PORT=${PORT:-8080}
-echo "Starting $SERVICE on port $PORT"
-```
-
-```bash
-# Generate a script with hardcoded values
-$ argorator compile template.sh --service nginx --port 80 > start-nginx.sh
-$ cat start-nginx.sh
-#!/bin/bash
-SERVICE="nginx"
-PORT="80"
-SERVICE=${SERVICE}
-PORT=${PORT:-8080}
-echo "Starting $SERVICE on port $PORT"
-
-$ bash start-nginx.sh
-Starting nginx on port 80
+$ argorator compile script.sh --var value > compiled.sh
 ```
 
 ### Export Mode
 
-Generate shell export statements for sourcing:
+Generate shell export statements:
 
 ```bash
-# config.sh
-DB_HOST=${DB_HOST}
-DB_PORT=${DB_PORT:-5432}
-DB_NAME=${DB_NAME}
-```
-
-```bash
-# Generate exports
-$ argorator export config.sh --db-host localhost --db-name myapp
-export DB_HOST="localhost"
-export DB_PORT="5432"
-export DB_NAME="myapp"
-
-# Use in your shell
-$ eval "$(argorator export config.sh --db-host localhost --db-name myapp)"
-$ echo $DB_HOST
-localhost
-```
-
-### Direct Execution with Shebang
-
-Make your scripts directly executable:
-
-```bash
-#!/usr/bin/env argorator
-# deploy-service.sh
-
-set -e
-
-echo "🚀 Deploying $SERVICE_NAME to $ENVIRONMENT"
-echo "📦 Version: ${VERSION:-latest}"
-echo "🔄 Replicas: ${REPLICAS:-3}"
-
-if [ "$DRY_RUN" = "true" ]; then
-    echo "🔍 DRY RUN - No changes will be made"
-fi
-
-# Your deployment logic here
-echo "✅ Deployment complete!"
-```
-
-```bash
-$ chmod +x deploy-service.sh
-$ ./deploy-service.sh --help
-$ ./deploy-service.sh --service-name api --environment staging --dry-run true
-```
-
-## 🎨 Real-World Examples
-
-### Configuration Management
-
-```bash
-#!/usr/bin/env argorator
-# configure-app.sh
-
-cat > config.json <<EOF
-{
-  "database": {
-    "host": "$DB_HOST",
-    "port": ${DB_PORT:-5432},
-    "name": "$DB_NAME",
-    "user": "$DB_USER"
-  },
-  "redis": {
-    "host": "${REDIS_HOST:-localhost}",
-    "port": ${REDIS_PORT:-6379}
-  },
-  "debug": ${DEBUG:-false}
-}
-EOF
-
-echo "✅ Configuration written to config.json"
-```
-
-### Docker Compose Wrapper
-
-```bash
-#!/usr/bin/env argorator
-# docker-deploy.sh
-
-# Set defaults
-COMPOSE_FILE=${COMPOSE_FILE:-docker-compose.yml}
-PROJECT_NAME=${PROJECT_NAME:-myproject}
-
-# Handle commands
-case "$1" in
-    up)
-        docker-compose -f $COMPOSE_FILE -p $PROJECT_NAME up -d $2
-        ;;
-    down)
-        docker-compose -f $COMPOSE_FILE -p $PROJECT_NAME down
-        ;;
-    logs)
-        shift
-        docker-compose -f $COMPOSE_FILE -p $PROJECT_NAME logs -f "$@"
-        ;;
-    *)
-        echo "Usage: $0 {up|down|logs} [services...]"
-        exit 1
-        ;;
-esac
-```
-
-### Build Script with Multiple Targets
-
-```bash
-#!/usr/bin/env argorator
-# build.sh
-
-set -e
-
-echo "🔨 Building $PROJECT"
-echo "📁 Output: ${OUTPUT_DIR:-./dist}"
-echo "🎯 Type: ${BUILD_TYPE:-release}"
-
-# Clean if requested
-if [ "$CLEAN" = "true" ]; then
-    echo "🧹 Cleaning previous build..."
-    rm -rf "${OUTPUT_DIR:-./dist}"
-fi
-
-# Build targets
-if [ $# -eq 0 ]; then
-    TARGETS="all"
-else
-    TARGETS="$@"
-fi
-
-for target in $TARGETS; do
-    echo "📦 Building target: $target"
-    # Your build logic here
-done
-
-echo "✅ Build complete!"
+$ eval "$(argorator export script.sh --var value)"
 ```
 
 ## 🔧 How It Works
 
-1. **Script Analysis**: Argorator parses your shell script using pattern matching to identify:
-   - Undefined variables (`$VAR` or `${VAR}`)
-   - Environment variables with defaults (`${VAR:-default}`)
-   - Positional parameters (`$1`, `$2`, `$@`, etc.)
-
-2. **CLI Generation**: Creates an argparse interface with:
-   - Required arguments for undefined variables
-   - Optional arguments for environment variables
-   - Positional arguments for `$1`, `$2`, etc.
-   - Variadic arguments for `$@` or `$*`
-
-3. **Script Execution**: Injects variable definitions at the top of your script and executes it with the proper shell interpreter.
+1. **Script Analysis**: Argorator parses your shell script to identify variables and positional arguments
+2. **CLI Generation**: Creates an argparse interface with appropriate options
+3. **Script Execution**: Injects variable definitions and runs your script
 
 ## 📋 Requirements
 
@@ -336,38 +184,12 @@ echo "✅ Build complete!"
 
 ## 🤝 Contributing
 
-We welcome contributions! Here's how you can help:
-
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-### Development Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/dotle/argorator.git
-cd argorator
-
-# Install in development mode
-pip install -e .
-
-# Run tests
-pytest
-```
-
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-Argorator was inspired by the need to make shell scripts more shareable and user-friendly without requiring rewrites in other languages.
-
----
-
-**Made with ❤️ by the Argorator team**
-
-*Transform your scripts, empower your workflows.*
