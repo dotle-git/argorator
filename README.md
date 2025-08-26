@@ -234,24 +234,6 @@ $ ./build.sh --project_name myproject --verbose true lib tests docs
 $ ./build.sh --project_name myproject --output_dir /tmp/build all
 ```
 
-## Tips and Best Practices
-
-1. **Variable Naming**: Use descriptive UPPERCASE names for your variables in the script. They will automatically be converted to lowercase CLI options (e.g., `$DB_HOST` becomes `--db_host`).
-
-2. **Defaults**: Provide defaults using shell parameter expansion: `${VAR:-default}`
-
-3. **Documentation**: Add comments in your script explaining what each variable does - they won't affect argorator but help users.
-
-4. **Validation**: Add validation in your script for critical variables:
-   ```bash
-   if [ -z "$REQUIRED_VAR" ]; then
-       echo "Error: REQUIRED_VAR is required" >&2
-       exit 1
-   fi
-   ```
-
-5. **Mixing Variables and Positionals**: Design your scripts carefully when using both named variables and positional arguments to avoid confusion.
-
 ## Installation
 
 ```bash
