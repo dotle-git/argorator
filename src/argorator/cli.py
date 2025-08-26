@@ -17,6 +17,15 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 SPECIAL_VARS: Set[str] = {"@", "*", "#", "?", "$", "!", "0"}
 
+# Global verbose flag
+_verbose = False
+
+
+def debug_print(message: str) -> None:
+	"""Print debug message if verbose mode is enabled."""
+	if _verbose:
+		print(f"[DEBUG] {message}", file=sys.stderr)
+
 
 def read_text_file(file_path: Path) -> str:
 	"""Read and return the file's content as UTF-8 text.
@@ -82,6 +91,32 @@ def parse_variable_usages(script_text: str) -> Set[str]:
 	return {name for name in candidates if name and name not in SPECIAL_VARS}
 
 
+def parse_type_hints(script_text: str) -> Dict[str, str]:
+	"""Extract type hints from special comments in the script.
+	
+	Looks for comments like:
+	  # @type VAR: int
+	  # @type VAR: float  
+	  # @type VAR: bool
+	  # @type VAR: str (default)
+	
+	Args:
+		script_text: The script content to analyze
+		
+	Returns:
+		Dictionary mapping variable names to their type hints
+	"""
+	type_hint_pattern = re.compile(r'^\s*#\s*@type\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(int|float|bool|str)\s*$', re.MULTILINE)
+	type_hints: Dict[str, str] = {}
+	
+	for match in type_hint_pattern.finditer(script_text):
+		var_name = match.group(1)
+		var_type = match.group(2)
+		type_hints[var_name] = var_type
+	
+	return type_hints
+
+
 def parse_positional_usages(script_text: str) -> Tuple[Set[int], bool]:
 	"""Detect positional parameter usage and varargs references in the script.
 
@@ -120,20 +155,35 @@ def determine_variables(script_text: str) -> Tuple[Set[str], Dict[str, Optional[
 	return defined_vars, undefined_vars, env_vars
 
 
-def build_dynamic_arg_parser(undefined_vars: Sequence[str], env_vars: Dict[str, str], positional_indices: Set[int], varargs: bool) -> argparse.ArgumentParser:
+def build_dynamic_arg_parser(undefined_vars: Sequence[str], env_vars: Dict[str, str], positional_indices: Set[int], varargs: bool, type_hints: Optional[Dict[str, str]] = None) -> argparse.ArgumentParser:
 	"""Construct an argparse parser for script-specific variables and positionals.
 
 	- Undefined variables become required options: --var (lowercase)
 	- Env-backed variables become optional with defaults from the environment
 	- Numeric positional references ($1, $2, ...) become positionals ARG1, ARG2, ...
 	- Varargs ($@ or $*) collects remaining args via an ARGS positional with nargs='*'
+	- Type hints from comments are applied to validate and convert argument types
 	"""
 	parser = argparse.ArgumentParser(add_help=False)
+	type_hints = type_hints or {}
+	
+	# Helper function to get the type converter
+	def get_type_converter(var_name: str):
+		hint = type_hints.get(var_name, 'str')
+		if hint == 'int':
+			return int
+		elif hint == 'float':
+			return float
+		elif hint == 'bool':
+			return lambda x: x.lower() in ('true', '1', 'yes', 'y', 'on')
+		else:  # str or unknown
+			return str
+	
 	# Options for variables
 	for name in undefined_vars:
-		parser.add_argument(f"--{name.lower()}", dest=name, required=True)
+		parser.add_argument(f"--{name.lower()}", dest=name, required=True, type=get_type_converter(name))
 	for name, value in env_vars.items():
-		parser.add_argument(f"--{name.lower()}", dest=name, default=value, required=False)
+		parser.add_argument(f"--{name.lower()}", dest=name, default=value, required=False, type=get_type_converter(name))
 	# Positional arguments
 	for index in sorted(positional_indices):
 		parser.add_argument(f"ARG{index}")
@@ -186,16 +236,20 @@ def run_script_with_args(shell_cmd: List[str], script_text: str, positional_args
 def build_top_level_parser() -> argparse.ArgumentParser:
 	"""Build the top-level argparse parser with run/compile/export subcommands."""
 	parser = argparse.ArgumentParser(prog="argorator", description="Execute or compile shell scripts with CLI-exposed variables")
+	parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose/debug output")
 	subparsers = parser.add_subparsers(dest="subcmd")
 	# run
 	run_parser = subparsers.add_parser("run", help="Run script (default)")
 	run_parser.add_argument("script", help="Path to the shell script")
+	run_parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose/debug output")
 	# compile
 	compile_parser = subparsers.add_parser("compile", help="Print modified script")
 	compile_parser.add_argument("script", help="Path to the shell script")
+	compile_parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose/debug output")
 	# export
 	export_parser = subparsers.add_parser("export", help="Print export lines")
 	export_parser.add_argument("script", help="Path to the shell script")
+	export_parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose/debug output")
 	return parser
 
 
@@ -208,7 +262,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 	3) Parse script to discover variables/positionals and build a dynamic parser
 	4) Execute command: run/compile/export
 	"""
+	global _verbose
 	argv = list(argv) if argv is not None else sys.argv[1:]
+	
+	# Check for verbose flag early
+	verbose_in_argv = "-v" in argv or "--verbose" in argv
+	
 	# If first token is a known subcommand, parse with subparsers; otherwise treat as implicit run
 	subcommands = {"run", "compile", "export"}
 	if argv and argv[0] in subcommands:
@@ -217,6 +276,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		command = ns.subcmd or "run"
 		script_arg: Optional[str] = getattr(ns, "script", None)
 		rest_args: List[str] = unknown
+		_verbose = getattr(ns, "verbose", False)
 		if script_arg is None:
 			print("error: script path is required", file=sys.stderr)
 			return 2
@@ -224,14 +284,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		# Implicit run path: use a minimal parser to capture script and remainder
 		implicit = argparse.ArgumentParser(prog="argorator", add_help=True, description="Execute or compile shell scripts with CLI-exposed variables")
 		implicit.add_argument("script", help="Path to the shell script")
+		implicit.add_argument("-v", "--verbose", action="store_true", help="Enable verbose/debug output")
 		implicit.add_argument("rest", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
 		try:
-			in_ns = implicit.parse_args(argv)
+			# Extract verbose flag before parsing remainder
+			temp_argv = argv.copy()
+			if verbose_in_argv:
+				temp_argv = [arg for arg in temp_argv if arg not in ["-v", "--verbose"]]
+				_verbose = True
+			in_ns = implicit.parse_args(temp_argv)
 		except SystemExit as exc:
 			return int(exc.code)
 		command = "run"
 		script_arg = in_ns.script
+		# Filter out verbose flags from rest args
 		rest_args = list(in_ns.rest or [])
+		if verbose_in_argv:
+			rest_args = [arg for arg in rest_args if arg not in ["-v", "--verbose"]]
 	# Validate and normalize script path
 	script_path = Path(script_arg).expanduser()
 	try:
@@ -242,14 +311,33 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 	if not script_path.exists() or not script_path.is_file():
 		print(f"error: script not found: {script_path}", file=sys.stderr)
 		return 2
+	
+	debug_print(f"Reading script: {script_path}")
 	script_text = read_text_file(script_path)
+	debug_print(f"Script size: {len(script_text)} bytes")
+	
 	# Parse script
 	defined_vars, undefined_vars_map, env_vars = determine_variables(script_text)
+	debug_print(f"Variables defined in script: {sorted(defined_vars)}")
+	debug_print(f"Undefined variables (required): {sorted(undefined_vars_map.keys())}")
+	debug_print(f"Environment variables (optional): {sorted(env_vars.keys())}")
+	
 	positional_indices, varargs = parse_positional_usages(script_text)
+	if positional_indices:
+		debug_print(f"Positional arguments used: ${', $'.join(str(i) for i in sorted(positional_indices))}")
+	if varargs:
+		debug_print("Varargs detected: $@ or $*")
+	
+	type_hints = parse_type_hints(script_text)
+	if type_hints:
+		debug_print(f"Type hints found: {type_hints}")
+	
 	# Build dynamic parser
 	undefined_names = sorted(undefined_vars_map.keys())
-	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs)
+	debug_print("Building argument parser...")
+	dyn_parser = build_dynamic_arg_parser(undefined_names, env_vars, positional_indices, varargs, type_hints)
 	try:
+		debug_print(f"Parsing arguments: {rest_args}")
 		dyn_ns = dyn_parser.parse_args(rest_args)
 	except SystemExit as exc:
 		return int(exc.code)
@@ -261,9 +349,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 			print(f"error: missing required --{name}", file=sys.stderr)
 			return 2
 		assignments[name] = str(value)
+		debug_print(f"Variable {name} = {value}")
 	for name in env_vars.keys():
 		value = getattr(dyn_ns, name, env_vars[name])
 		assignments[name] = str(value)
+		debug_print(f"Variable {name} = {value} (from {'argument' if value != env_vars[name] else 'environment'})")
 	# Collect positional args for shell invocation
 	positional_values: List[str] = []
 	for index in sorted(positional_indices):
@@ -273,9 +363,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 			print(f"error: missing positional argument ${index}", file=sys.stderr)
 			return 2
 		positional_values.append(str(value))
+		debug_print(f"Positional ${index} = {value}")
 	if varargs:
-		positional_values.extend([str(v) for v in getattr(dyn_ns, "ARGS", [])])
+		varargs_values = [str(v) for v in getattr(dyn_ns, "ARGS", [])]
+		positional_values.extend(varargs_values)
+		if varargs_values:
+			debug_print(f"Varargs = {varargs_values}")
 	# Prepare outputs per command
+	debug_print(f"Executing command: {command}")
 	if command == "export":
 		print(generate_export_lines(assignments))
 		return 0
@@ -285,6 +380,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		return 0
 	# run
 	shell_cmd = detect_shell_interpreter(script_text)
+	debug_print(f"Shell interpreter: {' '.join(shell_cmd)}")
+	debug_print(f"Positional arguments: {positional_values}")
 	return run_script_with_args(shell_cmd, modified_text, positional_values)
 
 
