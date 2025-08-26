@@ -103,7 +103,7 @@ def test_google_annotations_with_argparse():
     assert args.DEBUG is False
     
     # Test with overrides
-    args = parser.parse_args(["--port", "9000", "--debug", "true"])
+    args = parser.parse_args(["--port", "9000", "--debug"])
     assert args.PORT == 9000
     assert args.DEBUG is True
 

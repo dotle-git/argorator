@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - Example scripts directory - examples are now in documentation
+- Old :param style annotation tests (only Google-style is supported)
 
 ## [0.2.0] - Previous release
 

@@ -48,11 +48,13 @@ Argorator is a Python tool that transforms shell scripts into fully-featured com
 
 ## Testing Requirements
 
+- **ALWAYS run tests before committing**: `PYTHONPATH=/workspace/src python3 -m pytest tests/`
 - Add tests for ALL new functionality
 - Test files should mirror source structure
 - Use pytest fixtures for common test data
 - Integration tests should use temporary files
 - Test edge cases and error conditions
+- Fix failing tests immediately - don't commit broken tests
 
 ## Documentation Updates
 
