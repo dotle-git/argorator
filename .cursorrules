@@ -1,0 +1,73 @@
+# Argorator Project Rules
+
+## Project Overview
+Argorator is a Python tool that transforms shell scripts into fully-featured command-line tools by automatically exposing variables as CLI arguments.
+
+## Project Structure
+
+```
+.
+├── src/argorator/          # Main source code
+│   ├── __init__.py
+│   └── cli.py             # Core CLI implementation
+├── tests/                  # Test files
+│   ├── test_cli.py
+│   ├── test_annotations.py
+│   ├── test_google_annotations.py
+│   └── test_edge_cases.py
+├── examples/               # Example scripts demonstrating features
+│   ├── google_style_annotations.sh
+│   └── google_simple.sh
+├── docs/                   # Documentation
+│   ├── README.md          # Main documentation index
+│   └── features/          # Feature-specific documentation
+│       ├── README.md      # Features index
+│       └── google_style_annotations.md  # Google-style annotations guide
+├── README.md              # Project README
+├── pyproject.toml         # Project configuration
+└── LICENSE               # MIT License
+```
+
+## Key Features
+
+### Google-Style Annotations
+Scripts can use Google docstring-style comments to specify type and help information:
+
+```bash
+# VARIABLE_NAME (type): Description. Default: default_value
+# ENVIRONMENT (choice[dev, staging, prod]): Target environment
+```
+
+Supported types: str, int, float, bool, choice[...]
+
+### Core Functionality
+- Automatic detection of undefined variables in shell scripts
+- Environment variable defaults
+- Support for positional arguments ($1, $2, $@)
+- Three modes: run (default), compile, export
+- Shebang support: `#!/usr/bin/env argorator`
+
+## Code Style
+- Python code follows PEP 8
+- Shell scripts use UPPERCASE for variables
+- Type hints are used where applicable
+- Comprehensive docstrings for all functions
+
+## Testing
+- Tests use pytest
+- Test files mirror source structure
+- Integration tests use temporary files
+- Type conversion and validation are thoroughly tested
+
+## Documentation Guidelines
+- Feature documentation goes in `docs/features/`
+- Each feature gets its own markdown file
+- Examples should be practical and runnable
+- Include both simple and complex examples
+
+## Important Implementation Details
+- The `parse_arg_annotations()` function extracts Google-style comments
+- Type conversion happens in `build_dynamic_arg_parser()`
+- Boolean values are converted to lowercase "true"/"false" for shell compatibility
+- Annotations with defaults make arguments optional
+- Choice validation is handled by argparse
