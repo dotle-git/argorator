@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Main landing page with full project overview
   - Organized documentation structure in docs/ folder
   - Google-style annotations feature documentation
+
+### Fixed
+- Tests badge in README now points to correct repository (dotle-git/argorator)
+- PyPI version badge switched to shields.io for better reliability and update frequency
   - Automated deployment via GitHub Actions
   - Local development setup with Gemfile
   - Modern Minima theme with syntax highlighting

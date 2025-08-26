@@ -1,8 +1,8 @@
 # Argorator 🎯
 
-[![PyPI version](https://badge.fury.io/py/argorator.svg)](https://badge.fury.io/py/argorator)
+[![PyPI version](https://img.shields.io/pypi/v/argorator.svg)](https://pypi.org/project/argorator/)
 [![Python](https://img.shields.io/pypi/pyversions/argorator.svg)](https://pypi.org/project/argorator/)
-[![Tests](https://github.com/dotle/argorator/actions/workflows/tests.yml/badge.svg)](https://github.com/dotle/argorator/actions/workflows/tests.yml)
+[![Tests](https://github.com/dotle-git/argorator/actions/workflows/tests.yml/badge.svg)](https://github.com/dotle-git/argorator/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Transform any shell script into a fully-featured command-line tool with zero effort.**
