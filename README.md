@@ -5,163 +5,164 @@
 [![Tests](https://github.com/dotle/argorator/actions/workflows/tests.yml/badge.svg)](https://github.com/dotle/argorator/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Transform any shell script into a fully-featured command-line tool with zero effort.**
+**Turn any shell script into a command-line tool with `--help` and options.**
 
-Argorator automatically converts your shell scripts' variables and positional arguments into a proper CLI interface with `--help`, argument validation, and type conversion - all without modifying your original script.
+Ever written a script that needs input? Argorator automatically creates command-line options for your script's variables. No need to change your script at all!
 
-## 📦 Installation
+## Install
 
 ```bash
 pip install argorator
 ```
 
-Or with [pipx](https://pypa.github.com/pipx/) (recommended for global installation):
+## How to Use
+
+### Step 1: Write a normal script
 
 ```bash
-pipx install argorator
+# hello.sh
+echo "Hello $NAME!"
+echo "You are $AGE years old"
 ```
 
-## 🎯 Quick Start
-
-Take any shell script with variables:
+### Step 2: Run it with Argorator
 
 ```bash
-# deploy.sh
-#!/bin/bash
-echo "Deploying $SERVICE to $ENVIRONMENT"
-echo "Version: $VERSION"
+argorator hello.sh --name John --age 25
 ```
 
-Run it with Argorator:
+Output:
+```
+Hello John!
+You are 25 years old
+```
+
+### Get automatic help
 
 ```bash
-$ argorator deploy.sh --help
-usage: argorator deploy.sh [-h] --service SERVICE --environment ENVIRONMENT --version VERSION
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --service SERVICE
-  --environment ENVIRONMENT
-  --version VERSION
-
-$ argorator deploy.sh --service api --environment prod --version v1.2.3
-Deploying api to prod
-Version: v1.2.3
+argorator hello.sh --help
 ```
 
-That's it! No modifications needed to your script.
+Output:
+```
+usage: hello.sh [-h] --name NAME --age AGE
 
-## 🚀 Direct Execution with Shebang
+options:
+  -h, --help   show this help message and exit
+  --name NAME
+  --age AGE
+```
 
-Make your scripts directly executable:
+That's it! Your script now has professional command-line options.
+
+## Make Scripts Executable
+
+Add this line to the top of your script:
 
 ```bash
 #!/usr/bin/env argorator
-# deploy-service.sh
+# greet.sh
 
-echo "🚀 Deploying $SERVICE_NAME to $ENVIRONMENT"
-echo "📦 Version: ${VERSION:-latest}"
-
-if [ "$DRY_RUN" = "true" ]; then
-    echo "🔍 DRY RUN - No changes will be made"
+echo "Hi $NAME!"
+if [ "$LOUD" = "true" ]; then
+    echo "NICE TO MEET YOU!"
 fi
-
-echo "✅ Deployment complete!"
 ```
+
+Make it executable and run it:
 
 ```bash
-$ chmod +x deploy-service.sh
-$ ./deploy-service.sh --service-name api --environment staging --dry-run true
-🚀 Deploying api to staging
-📦 Version: latest
-🔍 DRY RUN - No changes will be made
-✅ Deployment complete!
+chmod +x greet.sh
+./greet.sh --name Alice --loud true
 ```
 
-## 📚 Core Features
+Output:
+```
+Hi Alice!
+NICE TO MEET YOU!
+```
 
-### Automatic Variable Detection
+## What Argorator Does
 
-Undefined variables become **required** CLI arguments, while environment variables become **optional** with defaults:
+### Variables become options
+
+Any `$VARIABLE` in your script becomes a `--variable` option:
 
 ```bash
 # backup.sh
-#!/bin/bash
-echo "Backing up $SOURCE to $DESTINATION"
-echo "User: $USER"
-echo "Compression: ${COMPRESSION:-gzip}"
+echo "Copying $SOURCE to $DEST"
 ```
 
+Run it:
 ```bash
-$ argorator backup.sh --help
-usage: argorator backup.sh [-h] --source SOURCE --destination DESTINATION [--user USER] [--compression COMPRESSION]
-
-options:
-  -h, --help            show this help message and exit
-  --source SOURCE
-  --destination DESTINATION
-  --user USER           (default from env: yourusername)
-  --compression COMPRESSION
-                        (default from env: gzip)
-
-$ argorator backup.sh --source /data --destination /backups --compression bzip2
-Backing up /data to /backups
-User: yourusername
-Compression: bzip2
+argorator backup.sh --source file.txt --dest backup.txt
 ```
 
-### Positional Arguments
+### Environment variables are optional
 
-Scripts using `$1`, `$2`, etc. automatically accept positional arguments:
+If a variable exists in your environment, it becomes optional with a default:
 
 ```bash
-# copy-files.sh
-#!/bin/bash
-echo "Copying $1 to $2"
-echo "Options: ${OPTIONS:-none}"
+# show-user.sh
+echo "Current user: $USER"
+echo "Home folder: $HOME"
 ```
 
+Run it:
 ```bash
-$ argorator copy-files.sh source.txt dest.txt --options "-v -r"
-Copying source.txt to dest.txt
-Options: -v -r
+argorator show-user.sh --help
 ```
 
-### Variable Arguments
+Shows:
+```
+--user USER     (default: your-username)
+--home HOME     (default: /home/your-username)
+```
 
-Collect multiple arguments using `$@`:
+### Use $1, $2 for ordered inputs
 
 ```bash
-# process-files.sh
-#!/bin/bash
-echo "Processing files:"
+# copy.sh
+cp $1 $2
+echo "Copied $1 to $2"
+```
+
+Run it:
+```bash
+argorator copy.sh file1.txt file2.txt
+```
+
+### Use $@ for multiple files
+
+```bash
+# list.sh
+echo "Files:"
 for file in "$@"; do
-    echo "  - $file"
+    echo "- $file"
 done
 ```
 
+Run it:
 ```bash
-$ argorator process-files.sh doc1.txt doc2.txt doc3.txt
-Processing files:
-  - doc1.txt
-  - doc2.txt
-  - doc3.txt
+argorator list.sh doc1.txt doc2.txt doc3.txt
 ```
 
-## 📋 Requirements
+## Requirements
 
-- Python 3.9+
-- Unix-like operating system (Linux, macOS, WSL)
-- Bash or compatible shell
+- Python 3.9 or newer
+- Linux, macOS, or Windows with WSL
+- Bash shell
 
-## 🤝 Contributing
+## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Want to help improve Argorator?
 
-## 📄 License
+1. Fork this repository
+2. Make your changes
+3. Submit a pull request
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+We welcome all contributions!
+
+## License
+
+MIT License - use it however you want!
