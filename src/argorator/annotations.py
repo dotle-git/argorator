@@ -12,6 +12,8 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 	- # VAR_NAME (type): Description. Default: default_value
 	- # VAR_NAME: Description (type defaults to str)
 	- # VAR_NAME (type) [alias: -x]: Description
+	- # VAR_NAME (type) [group: group_name]: Description
+	- # VAR_NAME (type) [exclusive_group: group_name]: Description
 	
 	For choice types:
 	- # VAR_NAME (choice[opt1, opt2, opt3]): Description
@@ -24,10 +26,8 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 	"""
 	annotations = {}
 	
-	# Pattern for Google-style docstring annotations
-	# Matches: # VAR_NAME (type) [alias: -x]: description. Default: value
-	# or: # VAR_NAME (choice[opt1, opt2]): description
-	# or: # VAR_NAME: description
+	# Pattern for Google-style docstring annotations with support for groups
+	# More flexible pattern that can handle annotations in any order
 	pattern = re.compile(
 		r'^\s*#\s*'
 		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name (any case)
@@ -35,7 +35,7 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 		r'(bool|int|float|str|string|choice)'  # Type
 		r'(?:\[([^\]]+)\])?'  # Optional choices for choice type
 		r'\))?'
-		r'(?:\s*\[alias:\s*([^\]]+)\])?'  # Optional alias
+		r'((?:\s*\[[^\]]+\])*)'  # Capture all bracket annotations
 		r'\s*:\s*'  # Colon separator
 		r'([^.]+?)' # Description (up to period or end)
 		r'(?:\.\s*[Dd]efault:\s*(.+?))?'  # Optional default value
@@ -47,9 +47,28 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 		var_name = match.group(1)
 		var_type = match.group(2) or 'str'
 		choices_str = match.group(3)
-		alias = match.group(4)
+		annotations_str = match.group(4)
 		description = match.group(5).strip()
 		default = match.group(6)
+		
+		# Parse all bracket annotations
+		alias = None
+		group = None
+		exclusive_group = None
+		
+		if annotations_str:
+			# Find all [key: value] patterns
+			bracket_pattern = re.compile(r'\[\s*([^:]+):\s*([^\]]+)\]')
+			for bracket_match in bracket_pattern.finditer(annotations_str):
+				key = bracket_match.group(1).strip().lower()
+				value = bracket_match.group(2).strip()
+				
+				if key == 'alias':
+					alias = value
+				elif key == 'group':
+					group = value
+				elif key == 'exclusive_group':
+					exclusive_group = value
 		
 		# Normalize type
 		if var_type.lower() in ('string', 'str'):
@@ -71,6 +90,12 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 			
 		if alias:
 			annotation_data['alias'] = alias.strip()
+		
+		if group:
+			annotation_data['group'] = group.strip()
+			
+		if exclusive_group:
+			annotation_data['exclusive_group'] = exclusive_group.strip()
 		
 		# Create ArgumentAnnotation model
 		annotations[var_name] = ArgumentAnnotation(**annotation_data)

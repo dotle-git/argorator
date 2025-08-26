@@ -26,6 +26,14 @@ class ArgumentAnnotation(BaseModel):
         default=None,
         description="Valid choices for choice type arguments"
     )
+    group: Optional[str] = Field(
+        default=None,
+        description="Argument group name for organizing related arguments"
+    )
+    exclusive_group: Optional[str] = Field(
+        default=None,
+        description="Mutually exclusive group name - only one argument from the group can be specified"
+    )
     
     @field_validator('alias')
     @classmethod
@@ -42,6 +50,14 @@ class ArgumentAnnotation(BaseModel):
         """Validate that choices are only set for choice type."""
         if v is not None and info.data.get('type') != 'choice':
             raise ValueError("choices can only be set for type='choice'")
+        return v
+    
+    @field_validator('exclusive_group')
+    @classmethod
+    def validate_exclusive_group(cls, v: Optional[str], info) -> Optional[str]:
+        """Validate that exclusive_group and group are not both set."""
+        if v is not None and info.data.get('group') is not None:
+            raise ValueError("argument cannot be in both a regular group and an exclusive group")
         return v
     
     def model_post_init(self, __context) -> None:
