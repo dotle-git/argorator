@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2025-08-26
+
+### Fixed
+- Handle environment variable default and annotation default conflicts
+  - Environment variable defaults now properly take precedence over annotation defaults
+  - Warning message displayed in --help when conflicts are detected
+  - Help text indicates when environment value overrides annotation default
+- Allow lowercase parameter names in annotation comments
+  - Parameter names in Google-style comments are now normalized to uppercase
+  - Enables more natural annotation syntax (e.g., `# user_name` for `$USER_NAME`)
+
 ### Changed
 - Updated tagline to "stop writing argument parsing in bash"
 - Added before/after example showing bash argument parsing complexity vs Argorator
