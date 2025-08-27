@@ -91,6 +91,65 @@ done < {self.source}'''
     {target_line}
 done'''
     
+    def _escape_separator_for_ifs(self, separator: str) -> str:
+        """Escape separator for use in IFS assignment."""
+        # Use $'...' format for all special characters to avoid quoting issues
+        if separator == "'":
+            return "$'\\047'"  # Octal for single quote
+        elif separator == '"':
+            return '$"\""'  # Use $"..." format for double quote
+        elif separator == '\\':
+            return "$'\\\\'"  # Backslash
+        elif separator == '\t':
+            return "$'\\t'"  # Tab
+        elif separator == '\n':
+            return "$'\\n'"  # Newline  
+        elif separator == '\r':
+            return "$'\\r'"  # Carriage return
+        else:
+            # For regular characters, use simple single quotes
+            return f"'{separator}'"
+
+    def _escape_separator_for_sed(self, separator: str) -> str:
+        """Escape separator for use in sed substitution."""
+        # Create escaped version character by character
+        result = ""
+        for char in separator:
+            if char == '.':
+                result += '\\.'
+            elif char == '*':
+                result += '\\*'
+            elif char == '[':
+                result += '\\['
+            elif char == ']':
+                result += '\\]'
+            elif char == '^':
+                result += '\\^'
+            elif char == '$':
+                result += '\\$'
+            elif char == '(':
+                result += '\\('
+            elif char == ')':
+                result += '\\)'
+            elif char == '+':
+                result += '\\+'
+            elif char == '{':
+                result += '\\{'
+            elif char == '}':
+                result += '\\}'
+            elif char == '|':
+                result += '\\|'
+            elif char == '?':
+                result += '\\?'
+            elif char == '\\':
+                result += '\\\\'
+            elif char == '/':
+                result += '\\/'
+            else:
+                result += char
+        
+        return result
+
     def _generate_delimited_function_loop(self, func_name: str, param_str: str) -> str:
         """Generate delimited iteration loop that calls a function."""
         if not self.separator:
@@ -102,18 +161,27 @@ done'''
         # Handle single character vs multi-character separators
         if len(self.separator) == 1:
             # Single character: use IFS
-            return f'''IFS='{self.separator}' read -ra {temp_array} <<< {self.source}
+            ifs_separator = self._escape_separator_for_ifs(self.separator)
+            return f'''IFS={ifs_separator} read -ra {temp_array} <<< {self.source}
 for {self.iterator_var} in "${{{temp_array}[@]}}"; do
     {func_name} {param_str}
 done'''
         else:
             # Multi-character: use parameter expansion
-            escaped_sep = self.separator.replace('/', r'\/')
-            return f'''{temp_array}=()
-IFS=$'\\n' read -d '' -ra {temp_array} < <(echo {self.source} | sed 's/{escaped_sep}/\\n/g' && printf '\\0')
-for {self.iterator_var} in "${{{temp_array}[@]}}"; do
+            escaped_sep = self._escape_separator_for_sed(self.separator)
+            # Use format() instead of f-string to avoid double-escaping backslashes
+            return '''{temp_array}=()
+IFS=$'\\n' read -d '' -ra {temp_array} < <(echo {source} | sed 's/{escaped_sep}/\\n/g' && printf '\\0')
+for {iterator_var} in "${{{temp_array}[@]}}"; do
     {func_name} {param_str}
-done'''
+done'''.format(
+                temp_array=temp_array,
+                source=self.source,
+                escaped_sep=escaped_sep,
+                iterator_var=self.iterator_var,
+                func_name=func_name,
+                param_str=param_str
+            )
     
     def _generate_delimited_line_loop(self, target_line: str) -> str:
         """Generate delimited iteration loop that wraps a line."""
@@ -126,15 +194,23 @@ done'''
         # Handle single character vs multi-character separators
         if len(self.separator) == 1:
             # Single character: use IFS
-            return f'''IFS='{self.separator}' read -ra {temp_array} <<< {self.source}
+            ifs_separator = self._escape_separator_for_ifs(self.separator)
+            return f'''IFS={ifs_separator} read -ra {temp_array} <<< {self.source}
 for {self.iterator_var} in "${{{temp_array}[@]}}"; do
     {target_line}
 done'''
         else:
             # Multi-character: use parameter expansion
-            escaped_sep = self.separator.replace('/', r'\/')
-            return f'''{temp_array}=()
-IFS=$'\\n' read -d '' -ra {temp_array} < <(echo {self.source} | sed 's/{escaped_sep}/\\n/g' && printf '\\0')
-for {self.iterator_var} in "${{{temp_array}[@]}}"; do
+            escaped_sep = self._escape_separator_for_sed(self.separator)
+            # Use format() instead of f-string to avoid double-escaping backslashes
+            return '''{temp_array}=()
+IFS=$'\\n' read -d '' -ra {temp_array} < <(echo {source} | sed 's/{escaped_sep}/\\n/g' && printf '\\0')
+for {iterator_var} in "${{{temp_array}[@]}}"; do
     {target_line}
-done'''
+done'''.format(
+                temp_array=temp_array,
+                source=self.source,
+                escaped_sep=escaped_sep,
+                iterator_var=self.iterator_var,
+                target_line=target_line
+            )
