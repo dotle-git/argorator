@@ -37,7 +37,16 @@ def create_base_parser(context: TransformContext) -> None:
                 help_text = help_text + "\n".join(warning_lines)
             return help_text
     
-    parser = ConflictAwareArgumentParser(add_help=True, prog=context.get_script_name())
+    # Determine description from script metadata
+    description = None
+    if context.script_metadata and context.script_metadata.description:
+        description = context.script_metadata.description
+    
+    parser = ConflictAwareArgumentParser(
+        add_help=True, 
+        prog=context.get_script_name(),
+        description=description
+    )
     context.argument_parser = parser
     
     # Store conflicts for use by other transformers

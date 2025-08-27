@@ -1,8 +1,65 @@
 """Parse Google-style annotations from shell script comments."""
 import re
-from typing import Dict
+import parsy
+from typing import Dict, Optional
 
 from .models import ArgumentAnnotation
+
+
+class CommentParser:
+    """Parser for shell script comments using parsy."""
+    
+    def __init__(self):
+        self._setup_grammar()
+    
+    def _setup_grammar(self):
+        """Setup parsy grammar for comment parsing."""
+        # Basic tokens
+        self.whitespace = parsy.regex(r'\s*')
+        self.optional_whitespace = parsy.regex(r'\s*')
+        self.required_whitespace = parsy.regex(r'\s+')
+        
+        # Comment start patterns
+        self.hash = parsy.string('#')
+        
+        # Description parsing
+        # Matches: # Description: text content
+        # or: #Description: text content (no space after #)
+        description_keyword = parsy.regex(r'[Dd]escription', re.IGNORECASE)
+        colon = parsy.string(':')
+        description_text = parsy.regex(r'.+')  # Rest of the line
+        
+        self.description_pattern = parsy.seq(
+            parsy.string('#'),
+            self.optional_whitespace,
+            description_keyword,
+            self.optional_whitespace,
+            colon,
+            self.optional_whitespace,
+            description_text
+        ).combine(lambda _, __, ___, ____, _____, ______, desc: desc.strip())
+    
+    def parse_description(self, script_text: str) -> Optional[str]:
+        """Parse script description from comments."""
+        lines = script_text.split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            if not line.startswith('#'):
+                continue
+                
+            try:
+                # Try to parse this line as a description
+                result = self.description_pattern.parse(line)
+                return result
+            except parsy.ParseError:
+                continue
+        
+        return None
+
+
+# Global parser instance
+_comment_parser = CommentParser()
 
 
 def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
@@ -77,3 +134,19 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 		annotations[var_name] = ArgumentAnnotation(**annotation_data)
 	
 	return annotations
+
+
+def parse_script_description(script_text: str) -> Optional[str]:
+	"""Parse script description from comments using # Description: format.
+	
+	Looks for comments in the format:
+	- # Description: My script description
+	- #Description: My script description (no space after #)
+	
+	Args:
+		script_text: The full script content
+		
+	Returns:
+		Script description string if found, None otherwise
+	"""
+	return _comment_parser.parse_description(script_text)
