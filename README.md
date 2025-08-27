@@ -20,6 +20,9 @@ pip install argorator
 ### Step 1: Write a normal script
 
 ```bash
+#!/usr/bin/env argorator
+# Description: A friendly greeting script
+
 echo "Hello $NAME!"
 echo "You are $AGE years old"
 ```
@@ -44,7 +47,9 @@ argorator hello.sh --help
 
 Output:
 ```
-usage: hello.sh [-h] --name NAME --age AGE
+usage: hello [-h] --name NAME --age AGE
+
+A friendly greeting script
 
 options:
   -h, --help   show this help message and exit
@@ -54,12 +59,37 @@ options:
 
 That's it! Your script now has professional command-line options.
 
-## Make Scripts Executable
+## Add Script Descriptions
 
-Add this line to the top of your script:
+Use `# Description:` comments to add helpful descriptions to your scripts:
 
 ```bash
 #!/usr/bin/env argorator
+# Description: Backup files with timestamp verification
+
+cp $SOURCE $DEST
+echo "Backup completed"
+```
+
+The description appears in the help output:
+```
+usage: backup [-h] --dest DEST --source SOURCE
+
+Backup files with timestamp verification
+
+options:
+  -h, --help       show this help message and exit
+  --dest DEST
+  --source SOURCE
+```
+
+## Make Scripts Executable
+
+Add these lines to the top of your script:
+
+```bash
+#!/usr/bin/env argorator
+# Description: Interactive greeting with customizable loudness
 
 echo "Hi $NAME!"
 if [ "$LOUD" = "true" ]; then
@@ -111,8 +141,12 @@ argorator show-user.sh --help
 
 Shows:
 ```
---user USER     (default: your-username)
---home HOME     (default: /home/your-username)
+usage: show-user [-h] [--home HOME] [--user USER]
+
+options:
+  -h, --help   show this help message and exit
+  --home HOME  (default: /home/your-username)
+  --user USER  (default: your-username)
 ```
 
 ### Use $1, $2 for ordered inputs
@@ -151,6 +185,7 @@ Process every line in a file:
 
 ```bash
 #!/usr/bin/env argorator
+# Description: Analyze log files for error patterns
 
 # LOGFILE (file): Input log file to analyze
 
@@ -169,6 +204,7 @@ Process matching files:
 
 ```bash
 #!/usr/bin/env argorator
+# Description: Convert images to thumbnails
 
 # for image in *.jpg
     echo "Converting: $image"
@@ -181,6 +217,7 @@ Handle CSV, paths, and custom separators:
 
 ```bash
 #!/usr/bin/env argorator
+# Description: Process delimited data with flexible separators
 
 # CSV_DATA (str): Comma-separated values  
 # PATHS (str): Colon-separated paths
@@ -201,6 +238,7 @@ Use functions for complex processing:
 
 ```bash
 #!/usr/bin/env argorator
+# Description: Analyze multiple log files for errors and warnings
 
 # for file in *.log
 analyze_log() {
@@ -266,8 +304,28 @@ echo "You are $AGE years old"
 ### After: With Argorator (simple!)
 
 ```bash
+#!/usr/bin/env argorator
+# Description: Simple greeting script with age display
+
 echo "Hello $NAME!"
 echo "You are $AGE years old"
+```
+
+Get instant help:
+```bash
+argorator script.sh --help
+```
+
+Output:
+```
+usage: script [-h] --age AGE --name NAME
+
+Simple greeting script with age display
+
+options:
+  -h, --help   show this help message and exit
+  --age AGE
+  --name NAME
 ```
 
 Run it:
