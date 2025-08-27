@@ -16,19 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
-- **INTERNAL**: Refactored codebase to use decorator registration pattern with context object
+- **INTERNAL**: Refactored codebase to use decorator registration pattern with Pydantic context object
   - Replaced static methods with module-level functions using decorator registration
-  - Created `context.py` with `PipelineContext` object that flows through all pipeline stages
+  - **Converted `PipelineContext` to Pydantic model with validation and type safety**
   - Created `registry.py` with decorator-based registration system for pipeline steps
   - Refactored `analyzers.py` to use `@analyzer` decorators with ordered execution
   - Split variable analysis into granular steps: variable usages, defined variables, undefined variables, environment variables
-  - Refactored `transformers.py` to use `@transformer` decorators  
+  - **Split `transformers.py` into 4 independent steps**: base parser creation, undefined variables, environment variables, positional arguments
   - Refactored `compilation.py` to use `@compiler` decorators
   - Refactored `execution.py` to use `@executor` decorators
   - Updated `pipeline.py` to orchestrate stages using the registry system
+  - Added data validation for exit codes (0-255) and positional indices (positive integers)
   - Maintained full backward compatibility while improving extensibility and testability
-  - Pipeline stages: 1) Script analysis, 2) Parser transformation, 3) Argument parsing, 4) Script compilation, 5) Script execution
-  - Analysis stage now has 7 distinct steps: shell interpreter, variable usages, defined variables, undefined variables, environment variables, positional parameters, annotations
+  - Pipeline stages: 1) Script analysis (7 steps), 2) Parser transformation (4 steps), 3) Argument parsing, 4) Script compilation (4 steps), 5) Script execution (1 step)
 
 ### Fixed
 

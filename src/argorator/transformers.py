@@ -1,7 +1,8 @@
 """Transformers for updating argparse parsers based on script analysis.
 
 This module contains transformer functions that take the pipeline context and
-build appropriate argparse parsers using the decorator pattern.
+build appropriate argparse parsers using the decorator pattern. Each transformer
+handles a specific aspect of parser construction.
 """
 import argparse
 from typing import Dict, List
@@ -12,27 +13,14 @@ from .registry import transformer
 
 
 @transformer(order=10)
-def build_dynamic_arg_parser(context: PipelineContext) -> PipelineContext:
-    """Construct an argparse parser for script-specific variables and positionals.
-
-    - Undefined variables become required options: --var (lowercase)
-    - Env-backed variables become optional with defaults from the environment
-    - Numeric positional references ($1, $2, ...) become positionals ARG1, ARG2, ...
-    - Varargs ($@ or $*) collects remaining args via an ARGS positional with nargs='*'
-    - Annotations from comments provide type information and help text
-    """
-    undefined_vars = sorted(context.undefined_vars.keys())
-    env_vars = context.env_vars
-    positional_indices = context.positional_indices
-    varargs = context.varargs
-    annotations = context.annotations
-    
+def create_base_parser(context: PipelineContext) -> PipelineContext:
+    """Create the base ArgumentParser with conflict detection."""
     # Detect conflicts between environment defaults and annotation defaults
     conflicts = []
-    for name in env_vars.keys():
-        annotation = annotations.get(name)
+    for name in context.env_vars.keys():
+        annotation = context.annotations.get(name)
         if annotation and annotation.default is not None:
-            env_value = env_vars[name]
+            env_value = context.env_vars[name]
             annotation_default = annotation.default
             if str(env_value) != str(annotation_default):
                 conflicts.append((name, env_value, annotation_default))
@@ -50,40 +38,82 @@ def build_dynamic_arg_parser(context: PipelineContext) -> PipelineContext:
             return help_text
     
     parser = ConflictAwareArgumentParser(add_help=True, prog=context.get_script_name())
+    context.argument_parser = parser
     
-    # Helper function to get type converter
-    def get_type_converter(type_str: str):
-        if type_str == 'int':
-            return int
-        elif type_str == 'float':
-            return float
-        else:  # str, string or choice
-            return str
+    # Store conflicts for use by other transformers
+    context.temp_data['conflicts'] = conflicts
     
-    # Options for undefined variables
+    return context
+
+
+@transformer(order=20)
+def add_undefined_variable_arguments(context: PipelineContext) -> PipelineContext:
+    """Add required arguments for undefined variables."""
+    if not context.argument_parser:
+        raise ValueError("Base parser must be created first")
+    
+    undefined_vars = sorted(context.undefined_vars.keys())
+    conflicts = context.temp_data.get('conflicts', [])
+    
     for name in undefined_vars:
         add_variable_argument(
-            parser, name, annotations.get(name, ArgumentAnnotation()), 
-            required=True, env_value=None, conflicts=conflicts,
-            get_type_converter=get_type_converter
+            context.argument_parser,
+            name,
+            context.annotations.get(name, ArgumentAnnotation()),
+            required=True,
+            env_value=None,
+            conflicts=conflicts
         )
-        
-    # Options for environment variables
-    for name, value in env_vars.items():
-        add_variable_argument(
-            parser, name, annotations.get(name, ArgumentAnnotation()), 
-            required=False, env_value=value, conflicts=conflicts,
-            get_type_converter=get_type_converter
-        )
-        
-    # Positional arguments
-    for index in sorted(positional_indices):
-        parser.add_argument(f"ARG{index}")
-    if varargs:
-        parser.add_argument("ARGS", nargs="*")
     
-    context.argument_parser = parser
     return context
+
+
+@transformer(order=30)
+def add_environment_variable_arguments(context: PipelineContext) -> PipelineContext:
+    """Add optional arguments for environment variables."""
+    if not context.argument_parser:
+        raise ValueError("Base parser must be created first")
+    
+    conflicts = context.temp_data.get('conflicts', [])
+    
+    for name, value in context.env_vars.items():
+        add_variable_argument(
+            context.argument_parser,
+            name,
+            context.annotations.get(name, ArgumentAnnotation()),
+            required=False,
+            env_value=value,
+            conflicts=conflicts
+        )
+    
+    return context
+
+
+@transformer(order=40)
+def add_positional_arguments(context: PipelineContext) -> PipelineContext:
+    """Add positional arguments for script parameters."""
+    if not context.argument_parser:
+        raise ValueError("Base parser must be created first")
+    
+    # Add numbered positional arguments
+    for index in sorted(context.positional_indices):
+        context.argument_parser.add_argument(f"ARG{index}")
+    
+    # Add varargs if needed
+    if context.varargs:
+        context.argument_parser.add_argument("ARGS", nargs="*")
+    
+    return context
+
+
+def get_type_converter(type_str: str):
+    """Get appropriate type converter function for argument type."""
+    if type_str == 'int':
+        return int
+    elif type_str == 'float':
+        return float
+    else:  # str, string or choice
+        return str
 
 
 def add_variable_argument(
@@ -92,8 +122,7 @@ def add_variable_argument(
     annotation: ArgumentAnnotation,
     required: bool,
     env_value: str,
-    conflicts: List,
-    get_type_converter
+    conflicts: List
 ):
     """Add a variable argument to the parser."""
     # Build argument names
@@ -112,7 +141,7 @@ def add_variable_argument(
         )
     else:
         add_typed_argument(
-            parser, arg_names, kwargs, annotation, required, env_value, name, conflicts, get_type_converter
+            parser, arg_names, kwargs, annotation, required, env_value, name, conflicts
         )
 
 
@@ -181,8 +210,7 @@ def add_typed_argument(
     required: bool,
     env_value: str,
     name: str,
-    conflicts: List,
-    get_type_converter
+    conflicts: List
 ):
     """Add a typed (non-boolean) argument to the parser."""
     kwargs['type'] = get_type_converter(annotation.type)
