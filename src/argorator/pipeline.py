@@ -144,10 +144,7 @@ class Pipeline:
         if not transform.argument_parser:
             raise ValueError("No argument parser available")
         
-        try:
-            return transform.argument_parser.parse_args(rest_args)
-        except SystemExit as exc:
-            sys.exit(int(exc.code))
+        return transform.argument_parser.parse_args(rest_args)
     
     def run_validation_stage(self, transform: TransformContext, parsed_args: argparse.Namespace) -> ValidateContext:
         """Stage 4: Validate and transform parsed arguments."""
@@ -218,6 +215,9 @@ class Pipeline:
             execute = self.run_execution_stage(analysis, compile_ctx)
             return execute.exit_code
             
+        except SystemExit as e:
+            # Handle argparse help/error exits
+            return int(e.code) if e.code is not None else 0
         except FileNotFoundError as e:
             print(f"error: {e}", file=sys.stderr)
             return 2
