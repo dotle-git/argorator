@@ -17,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+### Fixed
+
+## [0.5.1] - 2025-01-28
+
+### Fixed
+- Fixed iteration macro iterator variables being incorrectly included as CLI arguments
+- Fixed separator syntax causing syntax errors with special characters (quotes, regex chars, etc.)
+- Fixed improper escaping of regex special characters in multi-character separators
+
 ## [0.5.0] - 2025-01-28
 
 ### Added
