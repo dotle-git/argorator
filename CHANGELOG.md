@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+## [0.5.0] - 2025-01-28
+
+### Added
 - **NEW FEATURE**: Iteration macros for simplified bash loops using Python-style syntax
   - `# for iterator in source` comments transform lines or functions into bash loops
   - **Type-based iteration**: Uses argument annotation types to determine iteration behavior
@@ -40,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Supports nested contexts**: Macros work correctly within if blocks, existing loops, etc.
   - **Intelligent target detection**: Skips over consecutive macro comments to find actual code targets
   - **Clear error messages**: Specific guidance for resolving macro conflicts
+- **Enhanced argument types**: Added `file` type to argument annotations for automatic iteration behavior
 
 ### Changed
 - **INTERNAL**: Refactored codebase to use decorator registration pattern with stage-specific Pydantic context models

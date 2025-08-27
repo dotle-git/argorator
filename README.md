@@ -141,6 +141,75 @@ Run it:
 argorator list.sh doc1.txt doc2.txt doc3.txt
 ```
 
+## 🔄 Iteration Macros: Python-Style Loops in Bash
+
+**NEW!** Use simple comments to create powerful loops automatically.
+
+### File Processing
+
+Process every line in a file:
+
+```bash
+#!/usr/bin/env argorator
+
+# LOGFILE (file): Input log file to analyze
+
+# for line in $LOGFILE
+echo "Processing: $line" | grep "ERROR"
+```
+
+Run it:
+```bash
+argorator analyze.sh --logfile /var/log/app.log
+```
+
+### Pattern Iteration
+
+Process matching files:
+
+```bash
+# for image in *.jpg
+echo "Converting: $image"
+convert "$image" "thumbnails/${image%.jpg}_thumb.jpg"
+```
+
+### Delimited Data Processing
+
+Handle CSV, paths, and custom separators:
+
+```bash
+# CSV_DATA (str): Comma-separated values  
+# PATHS (str): Colon-separated paths
+
+# for item in $CSV_DATA sep ,
+echo "Item: $item"
+
+# for path in $PATHS separated by :
+echo "Path: $path"  
+
+# for field in $DATA separated by "::"
+echo "Field: $field"
+```
+
+### Function-Based Processing
+
+Use functions for complex processing:
+
+```bash
+# for file in *.log
+analyze_log() {
+    echo "=== Analyzing $1 ==="
+    grep -c "ERROR" "$1"
+    grep -c "WARN" "$1"  
+}
+```
+
+Generated bash handles everything automatically:
+- File line iteration (`while read`)
+- Array splitting for delimited data  
+- Proper quoting and error handling
+- Function parameter passing
+
 ## Before and After
 
 ### Before: Manual argument parsing (painful!)
