@@ -1,4 +1,4 @@
-"""Pydantic models for argument annotations."""
+"""Pydantic models for argument annotations and macro expansion."""
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 
@@ -49,3 +49,16 @@ class ArgumentAnnotation(BaseModel):
         # If choices are provided but type is not set, set type to 'choice'
         if self.choices and self.type != 'choice':
             self.type = 'choice'
+
+
+class MacroExpansionOptions(BaseModel):
+    """Options controlling macro expansion behavior."""
+
+    enable_iteration_macros: bool = Field(
+        default=True,
+        description="Enable comment-based iteration macros expansion",
+    )
+    preserve_indentation: bool = Field(
+        default=True,
+        description="Preserve original indentation in expanded code",
+    )

@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from .annotations import parse_arg_annotations
 from .models import ArgumentAnnotation
+from .macros import expand_macros, parse_for_loop_variables
 
 
 SPECIAL_VARS: Set[str] = {"@", "*", "#", "?", "$", "!", "0"}
@@ -111,6 +112,9 @@ def determine_variables(script_text: str) -> Tuple[Set[str], Dict[str, Optional[
 		- env_vars: mapping of variable names -> current environment default
 	"""
 	defined_vars = parse_defined_variables(script_text)
+	# Treat loop iterator variables from standard for-loops as defined
+	for_vars = set(parse_for_loop_variables(script_text))
+	defined_vars.update(for_vars)
 	used_vars = parse_variable_usages(script_text)
 	undefined_or_env = used_vars - defined_vars
 	env_vars: Dict[str, str] = {}
@@ -411,6 +415,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		print(f"error: script not found: {script_path}", file=sys.stderr)
 		return 2
 	script_text = read_text_file(script_path)
+	# Expand macros prior to analysis
+	script_text = expand_macros(script_text)
 	# Parse script
 	defined_vars, undefined_vars_map, env_vars = determine_variables(script_text)
 	positional_indices, varargs = parse_positional_usages(script_text)

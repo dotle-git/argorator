@@ -71,6 +71,32 @@ def test_implicit_run_path(tmp_path: Path):
 	assert rc == 0
 
 
+def test_iteration_macro_basic_compile_and_run(tmp_path: Path):
+	script_content = """#!/bin/bash
+# for ITEM in LIST
+echo "$ITEM"
+# endfor
+"""
+	script = write_temp_script(tmp_path, script_content)
+	# Provide LIST via CLI, space-separated
+	rc_compile = cli.main(["compile", str(script), "--list", "a b c"])
+	assert rc_compile == 0
+	rc_run = cli.main(["run", str(script), "--list", "x y"])  # Should execute loop
+	assert rc_run == 0
+
+
+def test_iteration_macro_var_is_not_required(tmp_path: Path):
+	script_content = """#!/bin/bash
+# for FILE in FILES
+echo "Processing $FILE"
+# endfor
+"""
+	script = write_temp_script(tmp_path, script_content)
+	# Should only require --files, not --file
+	rc = cli.main([str(script), "--files", "one two"])  # implicit run
+	assert rc == 0
+
+
 def test_help_shows_env_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
 	"""Test that environment variable defaults are shown in help text."""
 	# Set environment variables that will be used in the script

@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Iteration macros: comment-based loops compiled by Argorator
+  - `# for VAR in LIST` ... body ... `# endfor` expands to `for VAR in ${LIST}; do ... done`
+  - Works in both run and compile modes; remains valid Bash in editors
+  - Compiler now treats `for` loop variables as defined (not CLI args)
+
 ### Fixed
 - Set parser program name to the script name instead of "cli.py" in help output
 
