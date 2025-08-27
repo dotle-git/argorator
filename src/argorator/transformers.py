@@ -250,10 +250,14 @@ def add_typed_argument(
     parser.add_argument(*arg_names, **kwargs)
 
 
-def build_top_level_parser() -> argparse.ArgumentParser:
-    """Build the top-level argparse parser with run/compile/export subcommands."""
+def build_top_level_parser(script_name: str = "argorator") -> argparse.ArgumentParser:
+    """Build the top-level argparse parser with run/compile/export subcommands.
+    
+    Args:
+        script_name: The script name to use for the program name (defaults to "argorator")
+    """
     parser = argparse.ArgumentParser(
-        prog="argorator", 
+        prog=script_name, 
         description="Execute or compile shell scripts with CLI-exposed variables"
     )
     subparsers = parser.add_subparsers(dest="subcmd")

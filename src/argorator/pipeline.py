@@ -66,9 +66,39 @@ class Pipeline:
         else:
             return self._parse_implicit_run(argv)
     
+    def _extract_script_name_from_args(self, argv: List[str]) -> str:
+        """Extract script name from command line arguments for program name display.
+        
+        Args:
+            argv: Command line arguments
+            
+        Returns:
+            Script name without extension, or "argorator" if not found
+        """
+        # Look for script argument after subcommand
+        # Expected format: ['compile', 'script.sh', ...]
+        if len(argv) >= 2:
+            script_arg = argv[1]
+            # Skip if this is a flag (starts with -)
+            if script_arg.startswith('-'):
+                return "argorator"
+            
+            # Remove extension and get just the basename
+            try:
+                script_path = Path(script_arg)
+                return script_path.stem
+            except Exception:
+                # If path parsing fails, fall back to default
+                pass
+        
+        return "argorator"
+    
     def _parse_explicit_subcommand(self, argv: List[str]) -> PipelineCommand:
         """Parse explicit subcommand invocation."""
-        parser = build_top_level_parser()
+        # Extract script name early for proper program name in help
+        script_name = self._extract_script_name_from_args(argv)
+        
+        parser = build_top_level_parser(script_name)
         ns, unknown = parser.parse_known_args(argv)
         command = ns.subcmd or "run"
         script_arg: Optional[str] = getattr(ns, "script", None)
