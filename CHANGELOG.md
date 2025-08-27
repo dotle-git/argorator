@@ -16,6 +16,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+
+## [0.5.0] - 2025-01-28
+
+### Added
+- **NEW FEATURE**: Iteration macros for simplified bash loops using Python-style syntax
+  - `# for iterator in source` comments transform lines or functions into bash loops
+  - **Type-based iteration**: Uses argument annotation types to determine iteration behavior
+    - `# VAR (file): description` automatically triggers file line iteration for `$VAR`
+    - `# VAR (str): description` triggers array iteration for `$VAR`
+  - **Explicit type casting**: `# for line in $VAR as file` forces specific iteration types
+  - **Flexible syntax**: Supports both `$VAR as type` and `($VAR as type)` formats
+  - Supports pattern iteration: `# for file in *.txt` 
+  - Supports range iteration: `# for i in {1..10}`
+  - Function annotation: macros before function definitions generate loops that call the function
+  - Parameter passing: `# for file in *.txt | with $OUTPUT_DIR` passes additional parameters
+  - Uses parsy-based parser for accurate bash function detection and transformation
+  - Integrates seamlessly with existing variable system and CLI argument parsing
+  - **Backward compatible**: Existing scripts continue working unchanged
+- **NEW FEATURE**: Delimited string iteration with flexible separator syntax
+  - `# for item in $CSV_DATA sep ,` for simple separators
+  - `# for field in $PATH separated by :` for readable syntax
+  - `# for part in $TEXT separated by "::"` for multi-character separators
+  - `# for line in $DATA separated by "\\n"` with escape sequence support
+  - Smart single vs multi-character separator handling in generated bash
+- **ROBUST EDGE CASE HANDLING**: Comprehensive validation and conflict detection
+  - **Prevents multiple macros targeting the same line**: Clear error messages for ambiguous nested loops
+  - **Detects function macro conflicts**: Prevents function-level macros with internal macro conflicts
+  - **Supports nested contexts**: Macros work correctly within if blocks, existing loops, etc.
+  - **Intelligent target detection**: Skips over consecutive macro comments to find actual code targets
+  - **Clear error messages**: Specific guidance for resolving macro conflicts
+- **Enhanced argument types**: Added `file` type to argument annotations for automatic iteration behavior
+
+### Changed
 - **INTERNAL**: Refactored codebase to use decorator registration pattern with stage-specific Pydantic context models
   - Replaced static methods with module-level functions using decorator registration
   - **Created stage-specific context models with strict access controls**:

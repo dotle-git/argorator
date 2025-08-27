@@ -102,6 +102,7 @@ class CompileContext(BaseContext):
     # Variable information needed for compilation
     undefined_vars: Dict[str, Optional[str]] = Field(default_factory=dict, description="Variables not defined in script")
     env_vars: Dict[str, str] = Field(default_factory=dict, description="Variables with environment defaults")
+    annotations: Dict[str, ArgumentAnnotation] = Field(default_factory=dict, description="Parsed argument annotations")
 
     # OUTPUTS: What compile produces
     compiled_script: str = Field(default="", description="Compiled script with injected variables")
@@ -170,7 +171,8 @@ def create_compile_context(
         positional_indices=analysis.positional_indices,
         varargs=analysis.varargs,
         undefined_vars=analysis.undefined_vars,
-        env_vars=analysis.env_vars
+        env_vars=analysis.env_vars,
+        annotations=analysis.annotations
     )
 
 

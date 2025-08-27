@@ -33,7 +33,7 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 		r'^\s*#\s*'
 		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name (any case)
 		r'(?:\s*\('  # Optional type section
-		r'(bool|int|float|str|string|choice)'  # Type
+		r'(bool|int|float|str|string|choice|file)'  # Type
 		r'(?:\[([^\]]+)\])?'  # Optional choices for choice type
 		r'\))?'
 		r'(?:\s*\[alias:\s*([^\]]+)\])?'  # Optional alias
