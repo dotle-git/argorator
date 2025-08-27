@@ -4,6 +4,7 @@ import parsy
 from typing import Dict, Optional
 
 from .models import ArgumentAnnotation
+from .argument_types import get_all_supported_types, validate_type_name
 
 
 class CommentParser:
@@ -82,6 +83,10 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 	"""
 	annotations = {}
 	
+	# Build dynamic type pattern from supported types
+	supported_types = get_all_supported_types()
+	type_pattern = '|'.join(re.escape(t) for t in supported_types)
+	
 	# Pattern for Google-style docstring annotations
 	# Matches: # VAR_NAME (type) [alias: -x]: description. Default: value
 	# or: # VAR_NAME (choice[opt1, opt2]): description
@@ -90,7 +95,7 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 		r'^\s*#\s*'
 		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name (any case)
 		r'(?:\s*\('  # Optional type section
-		r'(bool|int|float|str|string|choice|file)'  # Type
+		rf'({type_pattern})'  # Dynamic type pattern from registry
 		r'(?:\[([^\]]+)\])?'  # Optional choices for choice type
 		r'\))?'
 		r'(?:\s*\[alias:\s*([^\]]+)\])?'  # Optional alias
@@ -109,11 +114,13 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 		description = match.group(5).strip()
 		default = match.group(6)
 		
-		# Normalize type
-		if var_type.lower() in ('string', 'str'):
-			var_type = 'str'
-		else:
-			var_type = var_type.lower()
+		# Validate and normalize type using the type registry
+		try:
+			var_type = validate_type_name(var_type)
+		except ValueError as e:
+			# Skip invalid type annotations with a warning
+			print(f"Warning: Skipping annotation for {var_name}: {e}")
+			continue
 		
 		# Build annotation data
 		annotation_data = {
@@ -121,8 +128,14 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 			'help': description
 		}
 		
-		if var_type == 'choice' and choices_str:
+		# Handle choices for choice-type annotations
+		if choices_str:
 			annotation_data['choices'] = [c.strip() for c in choices_str.split(',')]
+			# If choices are provided but type isn't a choice type, set it to choice
+			from .argument_types import get_type_handler
+			handler = get_type_handler(var_type)
+			if 'choice' not in handler.get_type_names():
+				annotation_data['type'] = 'choice'
 			
 		if default:
 			annotation_data['default'] = default.strip()
@@ -130,8 +143,12 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 		if alias:
 			annotation_data['alias'] = alias.strip()
 		
-		# Create ArgumentAnnotation model
-		annotations[var_name] = ArgumentAnnotation(**annotation_data)
+		# Create ArgumentAnnotation model (this will validate using the new type system)
+		try:
+			annotations[var_name] = ArgumentAnnotation(**annotation_data)
+		except ValueError as e:
+			print(f"Warning: Skipping annotation for {var_name}: {e}")
+			continue
 	
 	return annotations
 

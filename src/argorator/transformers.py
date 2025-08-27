@@ -108,12 +108,19 @@ def add_positional_arguments(context: TransformContext) -> None:
 
 
 def get_type_converter(type_str: str):
-    """Get appropriate type converter function for argument type."""
-    if type_str == 'int':
-        return int
-    elif type_str == 'float':
-        return float
-    else:  # str, string or choice
+    """Get appropriate type converter function for argument type.
+    
+    DEPRECATED: Use ArgumentAnnotation.get_type_handler().get_argparse_type() instead.
+    This function is kept for backward compatibility.
+    """
+    from .argument_types import get_type_handler
+    
+    try:
+        handler = get_type_handler(type_str)
+        argparse_type = handler.get_argparse_type()
+        return argparse_type if argparse_type is not None else str
+    except ValueError:
+        # Fallback for unknown types
         return str
 
 
@@ -136,7 +143,11 @@ def add_variable_argument(
     }
     
     # Handle boolean type specially
-    if annotation.type == 'bool':
+    # Use the new type system to determine how to handle this argument
+    type_handler = annotation.get_type_handler()
+    
+    # Check if this is a boolean type (which needs special handling)
+    if 'bool' in type_handler.get_type_names():
         add_boolean_argument(
             parser, arg_names, kwargs, annotation, required, env_value, name, conflicts
         )
@@ -214,11 +225,22 @@ def add_typed_argument(
     conflicts: List
 ):
     """Add a typed (non-boolean) argument to the parser."""
-    kwargs['type'] = get_type_converter(annotation.type)
+    # Use the new type system to configure argparse
+    type_handler = annotation.get_type_handler()
+    type_kwargs = type_handler.get_argparse_kwargs(annotation)
+    kwargs.update(type_kwargs)
     
     if env_value is not None:
         # Environment-backed variable
-        kwargs['default'] = get_type_converter(annotation.type)(env_value)
+        type_converter = type_handler.get_argparse_type()
+        if type_converter is not None:
+            try:
+                kwargs['default'] = type_converter(env_value)
+            except (ValueError, TypeError):
+                # If conversion fails, use the string value and let argparse handle it
+                kwargs['default'] = env_value
+        else:
+            kwargs['default'] = env_value
         kwargs['required'] = False
         
         # Build help text with default value info
@@ -232,7 +254,15 @@ def add_typed_argument(
         kwargs['help'] = ' '.join(help_parts)
     elif annotation.default is not None:
         # Annotation provides default
-        kwargs['default'] = get_type_converter(annotation.type)(annotation.default)
+        type_converter = type_handler.get_argparse_type()
+        if type_converter is not None:
+            try:
+                kwargs['default'] = type_converter(annotation.default)
+            except (ValueError, TypeError):
+                # If conversion fails, use the string value and let argparse handle it
+                kwargs['default'] = annotation.default
+        else:
+            kwargs['default'] = annotation.default
         kwargs['required'] = False
         if annotation.help:
             kwargs['help'] = f"{annotation.help} (default: {annotation.default})"

@@ -14,8 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- New object-oriented argument type system with `BaseArgumentType` and extensible type classes
+- Additional type aliases: `string`/`text` for str, `integer`/`number` for int, `decimal`/`real` for float, `boolean`/`flag` for bool, `enum`/`select`/`option` for choice, `path`/`filepath` for file
+- Comprehensive validation system for argument types and values
+- Extensible type registry allowing easy addition of new argument types
 - Set argument parser program name to script filename without extension for better help display
 - Support for `# Description: ...` annotation to add script description to help output (using parsy for consistent parsing)
+
+### Changed
+- Replaced string-based type handling with object-oriented type classes
+- Improved type validation with better error messages
+- Enhanced argument type parsing to use dynamic type registry instead of hardcoded regex
+- Modernized type conversion logic in transformers to use type handlers
+
+### Deprecated
+- `get_type_converter()` function (still works for backward compatibility but will be removed in future version)
 
 ### Changed
 
