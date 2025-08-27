@@ -254,6 +254,92 @@ Generated bash handles everything automatically:
 - Proper quoting and error handling
 - Function parameter passing
 
+## 🛡️ Safety Macros: Bulletproof Your Scripts
+
+**NEW!** Add safety features to your bash scripts with simple comments.
+
+### Strict Mode
+
+Enable bash strict mode with error handling:
+
+```bash
+#!/usr/bin/env argorator
+
+# set strict
+
+echo "Processing $FILE"
+# Script will exit immediately on:
+# - Any command failure (set -e)
+# - Undefined variables (set -u) 
+# - Pipe failures (set -o pipefail)
+```
+
+### Cleanup Traps
+
+Add automatic cleanup that runs specific code on script exit:
+
+```bash
+#!/usr/bin/env argorator
+
+# trap cleanup
+rm -f /tmp/tempfile
+echo "Temp files cleaned up"
+
+echo "Starting processing..."
+tempfile=$(mktemp)
+echo "Created: $tempfile"
+```
+
+Generated cleanup handler:
+```bash
+# Trap cleanup handler
+_cleanup_line_2() {
+    local exit_code=$?
+    rm -f /tmp/tempfile
+    echo "Temp files cleaned up"
+    exit $exit_code
+}
+
+trap _cleanup_line_2 EXIT ERR INT TERM
+
+echo "Starting processing..."
+tempfile=$(mktemp)
+echo "Created: $tempfile"
+```
+
+#### Custom Signals
+
+Specify which signals to trap:
+
+```bash
+#!/usr/bin/env argorator
+
+# trap cleanup EXIT,INT
+echo "Cleanup on exit or interrupt only"
+```
+
+### Use Both Together
+
+```bash
+#!/usr/bin/env argorator
+
+# set strict
+# trap cleanup
+rm -rf "$TEMP_DIR"
+echo "Cleaned up temporary directory"
+
+echo "Ultra-safe script processing $INPUT_FILE"
+TEMP_DIR=$(mktemp -d)
+echo "Working in: $TEMP_DIR"
+```
+
+Safety macros provide:
+- Immediate error detection and exit
+- Undefined variable protection  
+- Pipeline failure detection
+- Automatic cleanup on any exit condition
+- Professional error handling patterns
+
 ## Before and After
 
 ### Before: Manual argument parsing (painful!)

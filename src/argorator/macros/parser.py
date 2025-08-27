@@ -2,7 +2,7 @@
 import parsy
 import re
 from typing import List, Optional, Tuple
-from .models import FunctionBlock, MacroComment, IterationMacro, MacroTarget
+from .models import FunctionBlock, MacroComment, IterationMacro, MacroTarget, SafetyMacro
 
 class MacroParser:
     """Parser focused specifically on macro processing needs."""
@@ -156,6 +156,12 @@ class MacroParser:
         # Iteration macro: for VAR in SOURCE (stricter pattern)
         if re.match(r'for\s+\w+\s+in\s+\S+', content, re.IGNORECASE):
             return 'iteration'
+        
+        # Safety macros: set strict, trap cleanup
+        if re.match(r'set\s+strict\b', content, re.IGNORECASE):
+            return 'safety'
+        if re.match(r'trap\s+cleanup\b', content, re.IGNORECASE):
+            return 'safety'
         
         # Future macro types can be added here
         # if re.match(r'parallel', content, re.IGNORECASE):
@@ -374,6 +380,45 @@ class MacroParser:
                 return False
         
         return True
+    
+    def parse_safety_macro(self, comment: MacroComment, target: Optional[MacroTarget] = None) -> SafetyMacro:
+        """Parse a safety macro comment into a structured object."""
+        content = comment.content.strip()
+        
+        if content.lower().startswith('set strict'):
+            safety_type = 'set_strict'
+            options = []
+            signals = []
+            # set strict doesn't need a target
+            
+        elif content.lower().startswith('trap cleanup'):
+            safety_type = 'trap_cleanup'
+            options = []
+            
+            # Parse signals if specified: "trap cleanup EXIT,ERR,INT"
+            signals = []
+            if len(content.split()) > 2:
+                # Extract everything after "trap cleanup"
+                signals_part = ' '.join(content.split()[2:])
+                # Split by comma and clean up
+                signals = [s.strip().upper() for s in signals_part.split(',') if s.strip()]
+            
+            # Validate signals
+            valid_signals = {'EXIT', 'ERR', 'INT', 'TERM', 'HUP', 'QUIT', 'USR1', 'USR2', 'PIPE', 'ALRM'}
+            invalid_signals = [s for s in signals if s not in valid_signals]
+            if invalid_signals:
+                raise ValueError(f"Invalid signal(s): {', '.join(invalid_signals)}. Valid signals: {', '.join(sorted(valid_signals))}")
+        
+        else:
+            raise ValueError(f"Unknown safety macro type: {content}")
+        
+        return SafetyMacro(
+            comment=comment,
+            safety_type=safety_type,
+            target=target,
+            signals=signals,
+            options=options
+        )
 
 # Global parser instance
 macro_parser = MacroParser()
