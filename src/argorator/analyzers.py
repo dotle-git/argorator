@@ -13,8 +13,9 @@ import os
 import re
 from typing import Dict, Optional, Set, Tuple
 
-from .annotations import parse_arg_annotations
+from .annotations import parse_arg_annotations, parse_script_description
 from .contexts import AnalysisContext
+from .models import ScriptMetadata
 from .registry import analyzer
 
 
@@ -171,3 +172,11 @@ def analyze_positional_parameters(context: AnalysisContext) -> None:
 def analyze_annotations(context: AnalysisContext) -> None:
     """Parse comment-based annotations for argument metadata."""
     context.annotations = parse_arg_annotations(context.script_text)
+
+
+@analyzer(order=50)
+def analyze_script_metadata(context: AnalysisContext) -> None:
+    """Parse script-level metadata from comments."""
+    description = parse_script_description(context.script_text)
+    if description:
+        context.script_metadata = ScriptMetadata(description=description)

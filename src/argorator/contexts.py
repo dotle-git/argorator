@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Set, Any
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
-from .models import ArgumentAnnotation
+from .models import ArgumentAnnotation, ScriptMetadata
 
 
 class BaseContext(BaseModel):
@@ -35,13 +35,14 @@ class AnalysisContext(BaseContext):
     positional_indices: Set[int] = Field(default_factory=set, description="Positional parameter indices used")
     varargs: bool = Field(default=False, description="Whether script uses varargs ($@ or $*)")
     annotations: Dict[str, ArgumentAnnotation] = Field(default_factory=dict, description="Parsed annotations")
+    script_metadata: Optional[ScriptMetadata] = Field(default=None, description="Script-level metadata from comments")
 
     # Temporary data for pipeline steps
     temp_data: Dict[str, Any] = Field(default_factory=dict, description="Temporary data for pipeline steps")
 
     def get_script_name(self) -> Optional[str]:
-        """Get the script name for display purposes."""
-        return self.script_path.name if self.script_path else None
+        """Get the script name for display purposes (without extension)."""
+        return self.script_path.stem if self.script_path else None
 
     @field_validator('positional_indices')
     @classmethod
@@ -62,6 +63,7 @@ class TransformContext(BaseContext):
     positional_indices: Set[int] = Field(default_factory=set, description="Positional parameter indices used")
     varargs: bool = Field(default=False, description="Whether script uses varargs ($@ or $*)")
     annotations: Dict[str, ArgumentAnnotation] = Field(default_factory=dict, description="Parsed annotations")
+    script_metadata: Optional[ScriptMetadata] = Field(default=None, description="Script-level metadata from comments")
     script_path: Optional[Path] = Field(default=None, description="Path to the script file")  # For parser name
 
     # OUTPUTS: What transform produces
@@ -71,8 +73,8 @@ class TransformContext(BaseContext):
     temp_data: Dict[str, Any] = Field(default_factory=dict, description="Temporary data for pipeline steps")
 
     def get_script_name(self) -> Optional[str]:
-        """Get the script name for display purposes."""
-        return self.script_path.name if self.script_path else None
+        """Get the script name for display purposes (without extension)."""
+        return self.script_path.stem if self.script_path else None
 
 
 class ValidateContext(BaseContext):
@@ -146,6 +148,7 @@ def create_transform_context(analysis: AnalysisContext) -> TransformContext:
         positional_indices=analysis.positional_indices,
         varargs=analysis.varargs,
         annotations=analysis.annotations,
+        script_metadata=analysis.script_metadata,
         script_path=analysis.script_path
     )
 

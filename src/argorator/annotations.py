@@ -1,6 +1,6 @@
 """Parse Google-style annotations from shell script comments."""
 import re
-from typing import Dict
+from typing import Dict, Optional
 
 from .models import ArgumentAnnotation
 
@@ -77,3 +77,30 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 		annotations[var_name] = ArgumentAnnotation(**annotation_data)
 	
 	return annotations
+
+
+def parse_script_description(script_text: str) -> Optional[str]:
+	"""Parse script description from comments using # Description: format.
+	
+	Looks for comments in the format:
+	- # Description: My script description
+	- #Description: My script description (no space after #)
+	
+	Args:
+		script_text: The full script content
+		
+	Returns:
+		Script description string if found, None otherwise
+	"""
+	# Pattern for script description comment
+	# Matches: # Description: description text
+	pattern = re.compile(
+		r'^\s*#\s*[Dd]escription\s*:\s*(.+?)$',
+		re.MULTILINE | re.IGNORECASE
+	)
+	
+	match = pattern.search(script_text)
+	if match:
+		return match.group(1).strip()
+	
+	return None

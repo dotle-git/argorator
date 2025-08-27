@@ -49,3 +49,12 @@ class ArgumentAnnotation(BaseModel):
         # If choices are provided but type is not set, set type to 'choice'
         if self.choices and self.type != 'choice':
             self.type = 'choice'
+
+
+class ScriptMetadata(BaseModel):
+    """Model for script-level metadata."""
+    
+    description: Optional[str] = Field(
+        default=None,
+        description="Script description from # Description: comment"
+    )

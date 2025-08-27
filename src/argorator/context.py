@@ -81,5 +81,5 @@ class PipelineContext(BaseModel):
         return v
     
     def get_script_name(self) -> Optional[str]:
-        """Get the script name for display purposes."""
-        return self.script_path.name if self.script_path else None
+        """Get the script name for display purposes (without extension)."""
+        return self.script_path.stem if self.script_path else None
