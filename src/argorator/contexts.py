@@ -84,8 +84,23 @@ class TransformContext(BaseContext):
     argument_parser: Optional[argparse.ArgumentParser] = Field(default=None, description="Built argument parser")
 
 
+class ValidateContext(BaseContext):
+    """Context for the validate stage - can read parser/args and write validated/transformed args."""
+    
+    # Analysis results - read-only during validate stage
+    undefined_vars: Dict[str, Optional[str]] = Field(default_factory=dict, description="Variables not defined in script")
+    env_vars: Dict[str, str] = Field(default_factory=dict, description="Variables with environment defaults")
+    positional_indices: Set[int] = Field(default_factory=set, description="Positional parameter indices used")
+    varargs: bool = Field(default=False, description="Whether script uses varargs ($@ or $*)")
+    annotations: Dict[str, ArgumentAnnotation] = Field(default_factory=dict, description="Parsed annotations")
+    
+    # Parser and parsed arguments - readable and writable during validate stage
+    argument_parser: Optional[argparse.ArgumentParser] = Field(default=None, description="Built argument parser")
+    parsed_args: Optional[argparse.Namespace] = Field(default=None, description="Parsed command line arguments (can be modified)")
+
+
 class CompileContext(BaseContext):
-    """Context for the compile stage - can read parser/args and write compilation results."""
+    """Context for the compile stage - can read validated args and write compilation results."""
     
     # Analysis results - read-only during compile stage
     shell_cmd: List[str] = Field(default_factory=list, description="Shell command for execution")
@@ -94,9 +109,9 @@ class CompileContext(BaseContext):
     positional_indices: Set[int] = Field(default_factory=set, description="Positional parameter indices used")
     varargs: bool = Field(default=False, description="Whether script uses varargs ($@ or $*)")
     
-    # Parser and parsed arguments - read-only during compile stage
+    # Parser and validated arguments - read-only during compile stage
     argument_parser: Optional[argparse.ArgumentParser] = Field(default=None, description="Built argument parser")
-    parsed_args: Optional[argparse.Namespace] = Field(default=None, description="Parsed command line arguments")
+    parsed_args: Optional[argparse.Namespace] = Field(default=None, description="Validated and transformed arguments")
     
     # Compilation results - writable during compile stage
     variable_assignments: Dict[str, str] = Field(default_factory=dict, description="Resolved variable assignments")
@@ -184,6 +199,11 @@ def create_stage_context(full_context: FullPipelineContext, stage: str) -> BaseC
         stage_fields = TransformContext.model_fields.keys()
         filtered_data = {k: v for k, v in full_data.items() if k in stage_fields}
         return TransformContext(**filtered_data)
+    elif stage == 'validate':
+        # Only pass fields that ValidateContext expects
+        stage_fields = ValidateContext.model_fields.keys()
+        filtered_data = {k: v for k, v in full_data.items() if k in stage_fields}
+        return ValidateContext(**filtered_data)
     elif stage == 'compile':
         # Only pass fields that CompileContext expects
         stage_fields = CompileContext.model_fields.keys()

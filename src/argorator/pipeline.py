@@ -21,7 +21,7 @@ from .registry import pipeline_registry
 from .transformers import build_top_level_parser
 
 # Import all modules to register their decorated functions
-from . import analyzers, transformers, compilation, execution
+from . import analyzers, transformers, validators, compilation, execution
 
 
 class PipelineCommand:
@@ -144,14 +144,20 @@ class Pipeline:
         except SystemExit as exc:
             sys.exit(int(exc.code))
     
+    def run_validation_stage(self, context: FullPipelineContext) -> None:
+        """Stage 4: Validate and transform parsed arguments."""
+        stage_context = create_stage_context(context, 'validate')
+        self.registry.execute_stage('validate', stage_context)
+        update_full_context(context, stage_context)
+    
     def run_compilation_stage(self, context: FullPipelineContext) -> None:
-        """Stage 4: Compile the script with variable assignments and transformations."""
+        """Stage 5: Compile the script with variable assignments and transformations."""
         stage_context = create_stage_context(context, 'compile')
         self.registry.execute_stage('compile', stage_context)
         update_full_context(context, stage_context)
     
     def run_execution_stage(self, context: FullPipelineContext) -> None:
-        """Stage 5: Execute the compiled script."""
+        """Stage 6: Execute the compiled script."""
         stage_context = create_stage_context(context, 'execute')
         self.registry.execute_stage('execute', stage_context)
         update_full_context(context, stage_context)
@@ -188,7 +194,10 @@ class Pipeline:
             # Stage 3: Parse arguments
             self.parse_arguments(context)
             
-            # Stage 4: Compile script
+            # Stage 4: Validate and transform arguments
+            self.run_validation_stage(context)
+            
+            # Stage 5: Compile script
             self.run_compilation_stage(context)
             
             # Generate output for export/compile commands
@@ -202,7 +211,7 @@ class Pipeline:
                         print(output)
                 return 0
             
-            # Stage 5: Execute script (run command)
+            # Stage 6: Execute script (run command)
             self.run_execution_stage(context)
             return context.exit_code
             

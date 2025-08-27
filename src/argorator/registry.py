@@ -79,6 +79,10 @@ def transformer(order: int = 100):
     """Register a transformer step."""
     return pipeline_registry.register('transform', order)
 
+def validator(order: int = 100):
+    """Register a validator step."""
+    return pipeline_registry.register('validate', order)
+
 def compiler(order: int = 100):
     """Register a compiler step."""
     return pipeline_registry.register('compile', order)
