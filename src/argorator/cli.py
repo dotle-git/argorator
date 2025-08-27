@@ -92,10 +92,33 @@ def parse_positional_usages(script_text: str) -> Tuple[Set[int], bool]:
 	Returns a tuple of (set of numeric positions used, varargs_flag) where
 	varargs_flag is True if $@ or $* appears in the script.
 	"""
+	# Heuristic: ignore $N that appear inside function bodies, since these
+	# typically refer to function parameters rather than top-level script positionals.
+	function_start_pattern = re.compile(r"^\s*(?:function\s+)?[A-Za-z_][A-Za-z0-9_]*\s*\(\s*\)\s*\{")
+	lines = script_text.splitlines(True)
+	outside_parts: List[str] = []
+	in_func = False
+	brace_depth = 0
+	for line in lines:
+		if not in_func and function_start_pattern.match(line):
+			in_func = True
+			brace_depth = line.count('{') - line.count('}')
+			# Keep a newline placeholder to avoid joining tokens across boundaries
+			outside_parts.append("\n")
+			continue
+		if in_func:
+			brace_depth += line.count('{') - line.count('}')
+			if brace_depth <= 0:
+				in_func = False
+				outside_parts.append("\n")
+			continue
+		outside_parts.append(line)
+	out_text = ''.join(outside_parts)
+
 	digit_pattern = re.compile(r"\$([1-9][0-9]*)")
 	varargs_pattern = re.compile(r"\$(?:@|\*)")
-	indices = {int(m) for m in digit_pattern.findall(script_text)}
-	varargs = bool(varargs_pattern.search(script_text))
+	indices = {int(m) for m in digit_pattern.findall(out_text)}
+	varargs = bool(varargs_pattern.search(out_text))
 	return indices, varargs
 
 

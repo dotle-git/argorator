@@ -110,6 +110,20 @@ echo after
 	assert rc == 0
 
 
+def test_function_call_loop_form(tmp_path: Path):
+	script_content = """#!/bin/bash
+process_item() {
+  echo "[$1]"
+}
+
+# for X in ITEMS -> process_item
+echo done
+"""
+	script = write_temp_script(tmp_path, script_content)
+	rc = cli.main(["run", str(script), "--items", "a b"])  # Should call process_item for each
+	assert rc == 0
+
+
 def test_help_shows_env_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
 	"""Test that environment variable defaults are shown in help text."""
 	# Set environment variables that will be used in the script

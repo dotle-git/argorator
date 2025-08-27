@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Works in both run and compile modes; remains valid Bash in editors
   - Compiler now treats `for` loop variables as defined (not CLI args)
   - Optional one-line form: if `# endfor` is omitted, the loop applies to the next line only
+  - Function-call form: `# for VAR in LIST -> func` expands to a loop invoking `func "$VAR"`
 
 ### Fixed
 - Set parser program name to the script name instead of "cli.py" in help output

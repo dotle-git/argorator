@@ -95,3 +95,25 @@ Nesting is supported:
 - Raw Bash: the macro lines are just comments; scripts remain valid.
 - Argorator run/compile: macros expand before variable detection and injection.
 
+### Function-call form (multiline bodies as functions)
+
+You can write the body as a function and call it per item:
+
+```bash
+process_item() {
+  echo "[$1]"
+}
+
+# for X in ITEMS -> process_item
+echo "after"
+```
+
+Expands to:
+
+```bash
+for X in ${ITEMS}; do
+process_item "$X"
+done
+echo "after"
+```
+

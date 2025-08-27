@@ -25,7 +25,12 @@ import re
 from typing import List, Optional
 
 
-_FOR_START_RE = re.compile(r"^(?P<indent>\s*)#\s*for\s+(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s+in\s+(?P<expr>.+?)\s*$")
+_FOR_START_RE = re.compile(
+    r"^(?P<indent>\s*)#\s*for\s+"
+    r"(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s+in\s+"
+    r"(?P<expr>.+?)"
+    r"(?:\s*->\s*(?P<func>[A-Za-z_][A-Za-z0-9_]*))?\s*$"
+)
 _FOR_END_RE = re.compile(r"^\s*#\s*endfor\s*$")
 _SHELL_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -92,6 +97,15 @@ def expand_macros(script_text: str) -> str:
             indent = m_start.group("indent")
             var_name = m_start.group("var")
             expr = m_start.group("expr")
+            func_name = m_start.group("func")
+            if func_name:
+                # Expand immediately to a loop that calls the function for each item
+                header = _format_for_header(indent, var_name, expr)
+                call_line = f"{indent}{func_name} \"${var_name}\""
+                out.append("\n".join([header, call_line, f"{indent}done"]))
+                i += 1
+                continue
+
             single_line = not has_matching_endfor(i)
             stack.append(_ForFrame(indent, var_name, expr, single_line))
             if single_line:
