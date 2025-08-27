@@ -2,7 +2,7 @@
 import re
 from typing import Dict
 
-from .models import ArgumentAnnotation
+from .models import ArgumentAnnotation, get_argument_type_handler, TYPE_NAME_TO_HANDLER
 
 
 def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
@@ -25,6 +25,9 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 	"""
 	annotations = {}
 	
+	# Build dynamic type pattern from registered types
+	all_type_names = '|'.join(sorted(TYPE_NAME_TO_HANDLER.keys(), key=len, reverse=True))
+	
 	# Pattern for Google-style docstring annotations
 	# Matches: # VAR_NAME (type) [alias: -x]: description. Default: value
 	# or: # VAR_NAME (choice[opt1, opt2]): description
@@ -33,7 +36,7 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 		r'^\s*#\s*'
 		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name (any case)
 		r'(?:\s*\('  # Optional type section
-		r'(bool|int|float|str|string|choice)'  # Type
+		rf'({all_type_names})'  # Type (dynamic from registry)
 		r'(?:\[([^\]]+)\])?'  # Optional choices for choice type
 		r'\))?'
 		r'(?:\s*\[alias:\s*([^\]]+)\])?'  # Optional alias
@@ -52,20 +55,27 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 		description = match.group(5).strip()
 		default = match.group(6)
 		
-		# Normalize type
-		if var_type.lower() in ('string', 'str'):
-			var_type = 'str'
-		else:
-			var_type = var_type.lower()
+		# Get the type handler and normalize to canonical type_id
+		type_handler = get_argument_type_handler(var_type)
+		canonical_type = type_handler.type_id
 		
 		# Build annotation data
 		annotation_data = {
-			'type': var_type,
+			'type': canonical_type,
 			'help': description
 		}
 		
-		if var_type == 'choice' and choices_str:
+		# Handle choices for choice types
+		if canonical_type == 'choice' and choices_str:
 			annotation_data['choices'] = [c.strip() for c in choices_str.split(',')]
+		
+		# Validate annotation data using the type handler
+		try:
+			type_handler.validate_annotation_data(annotation_data)
+		except ValueError as e:
+			# Skip invalid annotations, or raise depending on desired behavior
+			print(f"Warning: Invalid annotation for {var_name}: {e}")
+			continue
 			
 		if default:
 			annotation_data['default'] = default.strip()
