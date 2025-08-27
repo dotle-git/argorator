@@ -153,15 +153,33 @@ class MacroParser:
     
     def _detect_macro_type(self, content: str) -> Optional[str]:
         """Detect if a comment is a macro and what type."""
-        # Iteration macro: for VAR in SOURCE (stricter pattern)
-        if re.match(r'for\s+\w+\s+in\s+\S+', content, re.IGNORECASE):
-            return 'iteration'
+        # Create parsy parser for iteration macro detection
+        # Pattern: for VAR in SOURCE
+        for_keyword = parsy.regex(r'for', re.IGNORECASE)
+        var_name = parsy.regex(r'\w+')
+        in_keyword = parsy.regex(r'in', re.IGNORECASE)
+        source = parsy.regex(r'\S+')
         
-        # Future macro types can be added here
-        # if re.match(r'parallel', content, re.IGNORECASE):
-        #     return 'parallel'
-        # if re.match(r'timeout\s+', content, re.IGNORECASE):
-        #     return 'timeout'
+        iteration_pattern = parsy.seq(
+            for_keyword,
+            parsy.regex(r'\s+'),
+            var_name,
+            parsy.regex(r'\s+'),
+            in_keyword,
+            parsy.regex(r'\s+'),
+            source
+        )
+        
+        # Try to parse as iteration macro
+        try:
+            iteration_pattern.parse(content)
+            return 'iteration'
+        except parsy.ParseError:
+            pass
+        
+        # Future macro types can be added here with Parsy parsers
+        # parallel_pattern = parsy.regex(r'parallel', re.IGNORECASE)
+        # timeout_pattern = parsy.seq(parsy.regex(r'timeout', re.IGNORECASE), parsy.regex(r'\s+'))
         
         return None
     

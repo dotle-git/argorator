@@ -18,8 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for `# Description: ...` annotation to add script description to help output (using parsy for consistent parsing)
 
 ### Changed
+- **BREAKING INTERNAL:** Refactored parsing infrastructure to use unified Parsy-based parsers
+  - Created unified `parsers.py` module for consistent parsing across all language features
+  - Replaced regex-based parsing with Parsy parsers for Google-style annotations
+  - Replaced regex-based variable analysis with Parsy parsers in `analyzers.py`
+  - Replaced regex-based variable assignment detection in `compilation.py`
+  - Updated macro type detection to use Parsy for consistency
+  - Ensured common models (`ArgumentAnnotation`, `ScriptMetadata`) are used across all parsers
 
 ### Fixed
+ - Correct shebang interpreter detection for `sh`/`dash` to use exact interpreter tokens
+   - Prevent misclassification where `#!/bin/zsh` was detected as `/bin/sh`
 
 ## [0.5.1] - 2025-01-28
 
