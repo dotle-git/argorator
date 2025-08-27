@@ -228,8 +228,19 @@ class MacroParser:
         for pattern, sep_group in separator_patterns:
             sep_match = re.search(pattern, content, re.IGNORECASE)
             if sep_match:
-                processed_content = sep_match.group(1).strip()
+                # Extract everything before the separator syntax
+                before_sep = sep_match.group(1).strip()
                 separator = self._process_separator(sep_match.group(sep_group))
+                
+                # Find everything after the separator in the original content
+                sep_end = sep_match.end()
+                after_sep = content[sep_end:].strip()
+                
+                # Combine before separator with anything after separator (like | with params)
+                if after_sep:
+                    processed_content = f"{before_sep} {after_sep}"
+                else:
+                    processed_content = before_sep
                 break
         
         # Enhanced pattern to support "as Type" syntax:
@@ -279,6 +290,10 @@ class MacroParser:
         
         # Determine iteration type (enhanced with separator detection)
         iteration_type = self._detect_iteration_type(source, source_type, separator)
+        
+        # Validate the iterator variable name
+        if not self._is_valid_bash_variable_name(iterator_var):
+            raise ValueError(f"Invalid variable name '{iterator_var}'. Bash variables must start with a letter or underscore, followed by letters, numbers, or underscores.")
         
         return IterationMacro(
             comment=comment,
@@ -343,6 +358,22 @@ class MacroParser:
             result = result.replace(escaped, actual)
         
         return result
+    
+    def _is_valid_bash_variable_name(self, name: str) -> bool:
+        """Check if a string is a valid bash variable name."""
+        if not name:
+            return False
+        
+        # Must start with letter or underscore
+        if not (name[0].isalpha() or name[0] == '_'):
+            return False
+        
+        # Rest must be letters, numbers, or underscores
+        for char in name[1:]:
+            if not (char.isalnum() or char == '_'):
+                return False
+        
+        return True
 
 # Global parser instance
 macro_parser = MacroParser()

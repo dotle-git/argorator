@@ -104,6 +104,136 @@ class MacroProcessor:
                     macro.iteration_type = 'array'
                     macro.source_type = 'array'
     
+    def _generate_nested_loop_alternatives(self, macros: List[IterationMacro], target_line: int) -> str:
+        """Generate specific workaround suggestions for nested loop conflicts."""
+        alternatives = []
+        
+        # Option 1: Separate lines approach
+        alternatives.append(
+            "1️⃣  SEPARATE LINES: Put each loop on its own line\n"
+            "   Example:\n"
+            "   # for dir in */\n"
+            "   echo \"Processing directory: $dir\"\n"
+            "   \n"
+            "   # for file in $dir/*.txt  \n"
+            "   echo \"Processing file: $file\""
+        )
+        
+        # Option 2: Function-based approach
+        if len(macros) == 2:
+            outer_macro = macros[0]  # Typically the first one
+            inner_macro = macros[1]
+            
+            alternatives.append(
+                f"2️⃣  FUNCTION APPROACH: Use a function for the inner loop\n"
+                f"   Example:\n"
+                f"   # {outer_macro.comment.content}\n"
+                f"   process_item() {{\n"
+                f"       # {inner_macro.comment.content}\n"
+                f"       echo \"Processing: $1 -> ${inner_macro.iterator_var}\"\n"
+                f"   }}"
+            )
+        
+        # Option 3: Single combined macro (if possible)
+        if len(macros) == 2 and all(m.iteration_type in ['pattern', 'array'] for m in macros):
+            alternatives.append(
+                "3️⃣  COMBINE PATTERNS: Use a single pattern if possible\n"
+                "   Example: # for file in */*.txt (if that matches your intent)"
+            )
+        
+        return "\n\n".join(alternatives)
+    
+    def _generate_function_conflict_alternatives(self, func_macro: IterationMacro, internal_macros: List[IterationMacro]) -> str:
+        """Generate specific workaround suggestions for function macro conflicts."""
+        alternatives = []
+        func_name = func_macro.target.metadata.get('function_name', 'process_item')
+        
+        # Option 1: Remove function macro, use internal only
+        alternatives.append(
+            "1️⃣  INTERNAL ONLY: Remove the function-level macro\n"
+            "   Keep the internal macros and call the function manually:\n"
+            f"   \n"
+            f"   {func_name}() {{\n"
+            f"       # Keep your internal macros here\n"
+            f"       # {internal_macros[0].comment.content}\n"
+            f"       echo \"Processing: ${internal_macros[0].iterator_var}\"\n"
+            f"   }}\n"
+            f"   \n"
+            f"   # Call it manually for each item\n"
+            f"   {func_name}"
+        )
+        
+        # Option 2: Remove internal macros, use function-level only  
+        alternatives.append(
+            "2️⃣  FUNCTION-LEVEL ONLY: Remove internal macros\n"
+            "   Let the function-level macro handle iteration:\n"
+            f"   \n"
+            f"   # {func_macro.comment.content}\n"
+            f"   {func_name}() {{\n"
+            f"       echo \"Processing: $1\"  # $1 will be the {func_macro.iterator_var}\n"
+            f"       # Process $1 directly here\n"
+            f"   }}"
+        )
+        
+        # Option 3: Sequential approach
+        alternatives.append(
+            "3️⃣  SEQUENTIAL: Separate the operations\n"
+            "   Use the function macro, then add separate processing:\n"
+            f"   \n"
+            f"   # {func_macro.comment.content}\n"
+            f"   {func_name}() {{\n"
+            f"       echo \"Stage 1: $1\"\n"
+            f"   }}\n"
+            f"   \n"
+            f"   # Separate processing\n"
+            f"   # {internal_macros[0].comment.content}\n"
+            f"   echo \"Stage 2: ${internal_macros[0].iterator_var}\""
+        )
+        
+        return "\n\n".join(alternatives)
+    
+    def _generate_syntax_error_help(self, comment: MacroComment, error_msg: str) -> str:
+        """Generate helpful syntax error messages with examples."""
+        content = comment.content.strip()
+        
+        help_sections = []
+        
+        # Show what they wrote
+        help_sections.append(f"📝 Your macro: # {content}")
+        help_sections.append(f"⚠️  Error: {error_msg}")
+        
+        # Provide correct syntax examples
+        examples = [
+            "✅ CORRECT SYNTAX EXAMPLES:",
+            "   # for file in *.txt",
+            "   # for line in $FILE as file", 
+            "   # for item in $CSV_DATA sep ,",
+            "   # for field in $PATH separated by :",
+            "   # for part in $TEXT separated by \"::\"",
+            "   # for i in {1..10}",
+            "   # for file in *.log | with $OUTPUT_DIR"
+        ]
+        help_sections.append("\n".join(examples))
+        
+        # Common fixes based on the error
+        if "Invalid iteration macro syntax" in error_msg:
+            fixes = [
+                "🔧 COMMON FIXES:",
+                "   • Check that you have: for VARIABLE in SOURCE",
+                "   • Variable names must be valid: letters, numbers, underscore",
+                "   • Source must be specified (not empty)",
+                "   • Use quotes for multi-word separators: \"::\" not ::"
+            ]
+            help_sections.append("\n".join(fixes))
+        
+        # Documentation link
+        help_sections.append(
+            "📚 FULL DOCUMENTATION: https://github.com/dotle-git/argorator#iteration-macros\n"
+            "🐛 REPORT ISSUES: https://github.com/dotle-git/argorator/issues/new"
+        )
+        
+        return "\n\n".join(help_sections)
+    
     def _validate_macro_combinations(self, macros: List[IterationMacro]) -> None:
         """Validate macro combinations and detect conflicts."""
         # Group macros by their target lines
@@ -123,9 +253,20 @@ class MacroProcessor:
         # Check for multiple macros targeting the same line
         for target_line, line_macros in target_groups.items():
             if len(line_macros) > 1:
+                macro_lines = [m.comment.line_number + 1 for m in line_macros]
+                macro_contents = [m.comment.content for m in line_macros]
+                
+                alternatives = self._generate_nested_loop_alternatives(line_macros, target_line)
+                
                 raise ValueError(
-                    f"Multiple iteration macros target the same line {target_line + 1}. "
-                    f"This creates ambiguous nested loops. Please use separate lines or combine into a single macro."
+                    f"❌ UNSUPPORTED: Multiple iteration macros target the same line {target_line + 1}\n\n"
+                    f"📍 Found macros on lines: {', '.join(map(str, macro_lines))}\n"
+                    f"   {chr(10).join([f'   Line {macro_lines[i]}: # {macro_contents[i]}' for i in range(len(macro_lines))])}\n\n"
+                    f"🔧 WORKAROUNDS:\n{alternatives}\n\n"
+                    f"💡 WANT NESTED LOOPS? This feature isn't implemented yet.\n"
+                    f"   👆 Please create a GitHub issue: https://github.com/dotle-git/argorator/issues/new\n"
+                    f"   📝 Title: 'Support nested iteration macros'\n"
+                    f"   📋 Include your use case and the script above."
                 )
         
         # Check for function macros with internal conflicts
@@ -140,10 +281,24 @@ class MacroProcessor:
                     conflicting_lines.extend(line_macros)
             
             if conflicting_lines:
+                func_line = func_macro.comment.line_number + 1
+                func_name = func_macro.target.metadata.get('function_name', 'unknown')
+                internal_lines = [m.comment.line_number + 1 for m in conflicting_lines]
+                internal_contents = [m.comment.content for m in conflicting_lines]
+                
+                alternatives = self._generate_function_conflict_alternatives(func_macro, conflicting_lines)
+                
                 raise ValueError(
-                    f"Function macro at line {func_macro.comment.line_number + 1} conflicts with "
-                    f"internal macros. Function-level iteration macros cannot contain additional "
-                    f"iteration macros inside the function body."
+                    f"❌ UNSUPPORTED: Function macro with internal iteration macros\n\n"
+                    f"📍 Function macro: Line {func_line} (function '{func_name}')\n"
+                    f"   # {func_macro.comment.content}\n\n"
+                    f"⚠️  Internal macros found:\n"
+                    f"   {chr(10).join([f'   Line {internal_lines[i]}: # {internal_contents[i]}' for i in range(len(internal_lines))])}\n\n"
+                    f"🔧 WORKAROUNDS:\n{alternatives}\n\n"
+                    f"💡 WANT FUNCTION-LEVEL + INTERNAL MACROS? This isn't supported yet.\n"
+                    f"   👆 Please create a GitHub issue: https://github.com/dotle-git/argorator/issues/new\n"
+                    f"   📝 Title: 'Support function macros with internal iteration macros'\n"
+                    f"   📋 Include your use case and the script above."
                 )
     
     def validate_macros(self, script_text: str) -> List[str]:
@@ -163,7 +318,8 @@ class MacroProcessor:
                     self.parser.parse_iteration_macro(comment, target)
                     
                 except ValueError as e:
-                    errors.append(f"Line {comment.line_number + 1}: {e}")
+                    error_details = self._generate_syntax_error_help(comment, str(e))
+                    errors.append(f"❌ INVALID MACRO SYNTAX (Line {comment.line_number + 1})\n{error_details}")
                 except Exception as e:
                     errors.append(f"Line {comment.line_number + 1}: Unexpected error: {e}")
         

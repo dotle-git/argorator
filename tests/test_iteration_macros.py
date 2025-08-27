@@ -364,7 +364,7 @@ process_file() {
             result = macro_processor.process_macros(script)
             assert False, "Should have raised ValueError for function macro conflict"
         except ValueError as e:
-            assert "Function macro at line 1 conflicts with internal macros" in str(e)
+            assert "UNSUPPORTED: Function macro with internal iteration macros" in str(e)
     
     def test_macro_in_if_block_allowed(self):
         """Test that macros within if blocks are allowed and work correctly."""
@@ -429,11 +429,13 @@ process_file() {
     
     def test_malformed_macro_validation(self):
         """Test validation catches malformed macros."""
-        script = '''# for item in
+        script = '''# for 123invalid in source
 echo "test"'''
         
         errors = macro_processor.validate_macros(script)
         assert len(errors) > 0
+        assert "INVALID MACRO SYNTAX" in errors[0]
+        assert "CORRECT SYNTAX EXAMPLES" in errors[0]
     
     def test_mixed_supported_scenarios(self):
         """Test complex but supported combinations of macros."""
