@@ -10,6 +10,24 @@ from typing import Dict, List
 
 from .contexts import CompileContext
 from .registry import compiler
+from .macros.processor import macro_processor
+
+
+@compiler(order=5)
+def process_iteration_macros(context: CompileContext) -> None:
+    """Process iteration macros and transform them into bash loops."""
+    try:
+        # Validate macros first
+        errors = macro_processor.validate_macros(context.script_text)
+        if errors:
+            error_msg = "\n".join(errors)
+            raise ValueError(f"Macro validation failed:\n{error_msg}")
+        
+        # Process macros
+        context.script_text = macro_processor.process_macros(context.script_text)
+        
+    except Exception as e:
+        raise ValueError(f"Macro processing failed: {e}")
 
 
 @compiler(order=10)

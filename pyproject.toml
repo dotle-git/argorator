@@ -17,6 +17,7 @@ classifiers = [
 ]
 dependencies = [
 	"pydantic>=2.0",
+	"parsy>=2.1",
 ]
 
 [project.scripts]
