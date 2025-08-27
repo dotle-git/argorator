@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+- Fixed iterator macros over indented blocks not including all indented content in the loop
 
 ## [0.5.1] - 2025-01-28
 

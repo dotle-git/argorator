@@ -66,9 +66,10 @@ class MacroProcessor:
                 lines.insert(insertion_point + i, line)
                 
         elif macro.target.target_type == 'line':
-            # Replace target line with loop
-            target_line = macro.target.start_line
-            lines[target_line:target_line + 1] = transformation.split('\n')
+            # Replace target line(s) with loop
+            start_line = macro.target.start_line
+            end_line = macro.target.end_line
+            lines[start_line:end_line + 1] = transformation.split('\n')
         
         # Remove the original macro comment
         del lines[macro.comment.line_number]

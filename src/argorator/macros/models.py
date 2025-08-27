@@ -77,18 +77,29 @@ done < {self.source}'''
 done'''
     
     def _generate_line_loop(self) -> str:
-        """Generate loop that wraps a line."""
-        target_line = self.target.content.strip()
+        """Generate loop that wraps a line or block."""
+        target_content = self.target.content
+        
+        # Handle multi-line content by adding proper indentation
+        target_lines = target_content.split('\n')
+        indented_lines = []
+        for line in target_lines:
+            if line.strip():  # Only indent non-empty lines
+                indented_lines.append(f'    {line}')
+            else:
+                indented_lines.append(line)  # Keep empty lines as-is
+        
+        indented_content = '\n'.join(indented_lines)
         
         if self.iteration_type == 'file_lines':
             return f'''while IFS= read -r {self.iterator_var}; do
-    {target_line}
+{indented_content}
 done < {self.source}'''
         elif self.iteration_type == 'delimited':
-            return self._generate_delimited_line_loop(target_line)
+            return self._generate_delimited_line_loop(target_content)
         else:
             return f'''for {self.iterator_var} in {self.source}; do
-    {target_line}
+{indented_content}
 done'''
     
     def _escape_separator_for_ifs(self, separator: str) -> str:
@@ -183,10 +194,21 @@ done'''.format(
                 param_str=param_str
             )
     
-    def _generate_delimited_line_loop(self, target_line: str) -> str:
-        """Generate delimited iteration loop that wraps a line."""
+    def _generate_delimited_line_loop(self, target_content: str) -> str:
+        """Generate delimited iteration loop that wraps a line or block."""
         if not self.separator:
             raise ValueError("Separator required for delimited iteration")
+        
+        # Handle multi-line content by adding proper indentation
+        target_lines = target_content.split('\n')
+        indented_lines = []
+        for line in target_lines:
+            if line.strip():  # Only indent non-empty lines
+                indented_lines.append(f'    {line}')
+            else:
+                indented_lines.append(line)  # Keep empty lines as-is
+        
+        indented_content = '\n'.join(indented_lines)
         
         # Generate temporary array name
         temp_array = f"ARGORATOR_ARRAY_{id(self) % 10000}"
@@ -197,7 +219,7 @@ done'''.format(
             ifs_separator = self._escape_separator_for_ifs(self.separator)
             return f'''IFS={ifs_separator} read -ra {temp_array} <<< {self.source}
 for {self.iterator_var} in "${{{temp_array}[@]}}"; do
-    {target_line}
+{indented_content}
 done'''
         else:
             # Multi-character: use parameter expansion
@@ -206,11 +228,11 @@ done'''
             return '''{temp_array}=()
 IFS=$'\\n' read -d '' -ra {temp_array} < <(echo {source} | sed 's/{escaped_sep}/\\n/g' && printf '\\0')
 for {iterator_var} in "${{{temp_array}[@]}}"; do
-    {target_line}
+{indented_content}
 done'''.format(
                 temp_array=temp_array,
                 source=self.source,
                 escaped_sep=escaped_sep,
                 iterator_var=self.iterator_var,
-                target_line=target_line
+                indented_content=indented_content
             )
