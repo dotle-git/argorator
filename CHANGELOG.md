@@ -16,9 +16,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- **INTERNAL**: Refactored codebase to use decorator registration pattern with stage-specific Pydantic context models
+  - Replaced static methods with module-level functions using decorator registration
+  - **Created stage-specific context models with strict access controls**:
+    - `AnalysisContext`: Can read script and write analysis results (no parser access)
+    - `TransformContext`: Can read analysis results and create/modify parser (no compilation access)
+    - `CompileContext`: Can read parser/args and write compilation results (no analysis modification)
+    - `ExecuteContext`: Can read compilation results and write execution results (limited scope)
+    - `FullPipelineContext`: Used only by pipeline orchestrator with full access
+  - **Pipeline steps now mutate context in-place (no return values required)**
+  - Created `registry.py` with decorator-based registration system for pipeline steps
+  - Refactored `analyzers.py` to use `@analyzer` decorators with ordered execution
+  - Split variable analysis into granular steps: variable usages, defined variables, undefined variables, environment variables
+  - **Split `transformers.py` into 4 independent steps**: base parser creation, undefined variables, environment variables, positional arguments
+  - Refactored `compilation.py` to use `@compiler` decorators
+  - Refactored `execution.py` to use `@executor` decorators
+  - Updated `pipeline.py` to orchestrate stages using the registry system with proper context isolation
+  - Added data validation for exit codes (0-255) and positional indices (positive integers)
+  - **Added new VALIDATE stage infrastructure for future argument validation and transformation**:
+    - `ValidateContext`: Can read parser/args and write validated/transformed arguments
+    - Empty stage ready for future validation step implementations
+    - Extensible via `@validator` decorators for custom validation logic
+  - **Enforced proper separation of concerns through Pydantic model validation**
+  - Maintained full backward compatibility while improving extensibility and testability
+  - Pipeline stages: 1) Script analysis (7 steps), 2) Parser transformation (4 steps), 3) Argument parsing, 4) **Argument validation (0 steps - infrastructure ready)**, 5) Script compilation (4 steps), 6) Script execution (1 step)
 
 ### Fixed
-
+ - Remove accidentally committed pip installation log file `=2.0` from repo root
 ## [0.4.0] - 2025-08-27
 
 ### Added

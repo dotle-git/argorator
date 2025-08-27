@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from argorator import cli
+from argorator.analyzers import parse_variable_usages
 
 
 def write_script(tmp_path: Path, name: str, content: str) -> Path:
@@ -12,7 +13,7 @@ def write_script(tmp_path: Path, name: str, content: str) -> Path:
 
 def test_parameter_expansion_detects_variable_usage():
 	text = "echo ${NAME:-guest}\n"
-	used = cli.parse_variable_usages(text)
+	used = parse_variable_usages(text)
 	assert "NAME" in used
 
 
