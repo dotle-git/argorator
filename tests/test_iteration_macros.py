@@ -427,6 +427,84 @@ process_file() {
         assert 'process_file "$file"' in result
         assert "done" in result
     
+    def test_indented_block_macro(self):
+        """Test macro that applies to an indented block."""
+        script = '''# for item in $items
+  echo "Processing: $item"
+  echo "Status: done"'''
+        
+        result = macro_processor.process_macros(script)
+        expected = '''for item in $items; do
+      echo "Processing: $item"
+      echo "Status: done"
+done'''
+        assert result.strip() == expected.strip()
+    
+    def test_complex_indented_block_macro(self):
+        """Test macro with complex indented block including nested structures."""
+        script = '''# for file in *.txt
+  echo "Processing file: $file"
+  if [ -f "$file" ]; then
+    echo "File exists"
+    cat "$file"
+  fi
+  echo "Completed: $file"'''
+        
+        result = macro_processor.process_macros(script)
+        
+        # Verify the structure is correct
+        lines = result.split('\n')
+        assert 'for file in *.txt; do' in lines[0]
+        assert '      echo "Processing file: $file"' in lines[1]
+        assert '      if [ -f "$file" ]; then' in lines[2]
+        assert '        echo "File exists"' in lines[3]
+        assert '        cat "$file"' in lines[4]
+        assert '      fi' in lines[5]
+        assert '      echo "Completed: $file"' in lines[6]
+        assert 'done' in lines[7]
+    
+    def test_mixed_indentation_levels(self):
+        """Test macro with lines at different indentation levels."""
+        script = '''# for item in $items
+  echo "Level 1: $item"
+    echo "Level 2: nested"
+  echo "Back to level 1"'''
+        
+        result = macro_processor.process_macros(script)
+        
+        # All lines should be included in the loop with proper indentation
+        assert 'for item in $items; do' in result
+        assert '      echo "Level 1: $item"' in result
+        assert '        echo "Level 2: nested"' in result  
+        assert '      echo "Back to level 1"' in result
+        assert 'done' in result
+    
+    def test_indented_block_with_delimited_iteration(self):
+        """Test indented block with delimited iteration."""
+        script = '''# for item in $CSV_DATA sep ,
+  echo "Processing: $item"
+  echo "Item processed"'''
+        
+        result = macro_processor.process_macros(script)
+        
+        # Should use delimited iteration format
+        assert "IFS=',' read -ra ARGORATOR_ARRAY_" in result
+        assert "for item in" in result
+        assert '      echo "Processing: $item"' in result
+        assert '      echo "Item processed"' in result
+        assert "done" in result
+    
+    def test_single_line_macro_still_works(self):
+        """Ensure single line macros continue to work after indented block support."""
+        script = '''# for file in *.log
+echo "Processing $file"'''
+        
+        result = macro_processor.process_macros(script)
+        expected = '''for file in *.log; do
+    echo "Processing $file"
+done'''
+        assert result.strip() == expected.strip()
+
     def test_malformed_macro_validation(self):
         """Test validation catches malformed macros."""
         script = '''# for 123invalid in source

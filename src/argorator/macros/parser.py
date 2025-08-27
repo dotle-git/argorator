@@ -165,6 +165,49 @@ class MacroParser:
         
         return None
     
+    def _find_indented_block_end(self, lines: List[str], start_line: int) -> int:
+        """Find the end of an indented block starting at start_line."""
+        if start_line >= len(lines):
+            return start_line
+        
+        # Get the indentation level of the first target line
+        first_line = lines[start_line]
+        if not first_line.strip():  # Empty line
+            return start_line
+        
+        # Calculate indentation (leading whitespace)
+        target_indent = len(first_line) - len(first_line.lstrip())
+        
+        end_line = start_line
+        
+        # Look for subsequent lines with same or deeper indentation
+        for i in range(start_line + 1, len(lines)):
+            line = lines[i]
+            
+            # Empty lines are included in the block
+            if not line.strip():
+                continue
+            
+            # If this line is a macro comment, stop the block
+            stripped_line = line.strip()
+            if stripped_line.startswith('#') and self._detect_macro_type(stripped_line[1:].strip()):
+                break
+            
+            # Calculate indentation of this line
+            line_indent = len(line) - len(line.lstrip())
+            
+            # If this line has less indentation than our target, we've reached the end
+            if line_indent < target_indent:
+                break
+                
+            # If this line has same or deeper indentation, include it
+            if line_indent >= target_indent:
+                end_line = i
+            else:
+                break
+        
+        return end_line
+    
     def find_target_for_macro(self, script_text: str, macro_line: int) -> Optional[MacroTarget]:
         """Find what a macro applies to (function or line after it)."""
         lines = script_text.split('\n')
@@ -196,12 +239,21 @@ class MacroParser:
                     metadata={"function_name": func_name}
                 )
         
-        # Otherwise, it's a single line target
+        # Otherwise, it's a line target (possibly an indented block)
+        end_line = self._find_indented_block_end(lines, target_line)
+        
+        if end_line == target_line:
+            # Single line target
+            content = lines[target_line]
+        else:
+            # Multi-line indented block target
+            content = '\n'.join(lines[target_line:end_line + 1])
+        
         return MacroTarget(
             target_type="line",
             start_line=target_line,
-            end_line=target_line,
-            content=lines[target_line],
+            end_line=end_line,
+            content=content,
             metadata={}
         )
     
