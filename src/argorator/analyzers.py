@@ -32,14 +32,23 @@ def detect_shell_interpreter(context: AnalysisContext) -> None:
     first_line = context.script_text.splitlines()[0] if context.script_text else ""
     if first_line.startswith("#!"):
         shebang = first_line[2:].strip()
-        # Normalize common shells
-        if "bash" in shebang:
+        # Normalize common shells using token/filename-aware matching to avoid substring collisions
+        # Split on whitespace to isolate interpreter path (first token)
+        tokens = shebang.split()
+        interpreter_token = tokens[0] if tokens else ""
+        interpreter_basename = os.path.basename(interpreter_token)
+
+        # Handle env-style shebangs: e.g., #!/usr/bin/env bash
+        if interpreter_basename == "env" and len(tokens) >= 2:
+            interpreter_basename = os.path.basename(tokens[1])
+
+        if interpreter_basename == "bash":
             context.shell_cmd = ["/bin/bash"]
-        elif any(shell in shebang for shell in ["sh", "dash"]):
+        elif interpreter_basename in {"sh", "dash"}:
             context.shell_cmd = ["/bin/sh"]
-        elif "zsh" in shebang:
+        elif interpreter_basename == "zsh":
             context.shell_cmd = ["/bin/zsh"]
-        elif "ksh" in shebang:
+        elif interpreter_basename == "ksh":
             context.shell_cmd = ["/bin/ksh"]
         else:
             context.shell_cmd = ["/bin/bash"]  # Default for unknown shebangs

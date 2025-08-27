@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Ensured common models (`ArgumentAnnotation`, `ScriptMetadata`) are used across all parsers
 
 ### Fixed
+ - Correct shebang interpreter detection for `sh`/`dash` to use exact interpreter tokens
+   - Prevent misclassification where `#!/bin/zsh` was detected as `/bin/sh`
 
 ## [0.5.1] - 2025-01-28
 
