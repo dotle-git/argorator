@@ -1,8 +1,8 @@
 import pytest
 from pathlib import Path
-from argorator import cli
 from argorator.annotations import parse_arg_annotations
 from argorator.models import ArgumentAnnotation
+from argorator.testing import build_test_parser
 
 
 def test_parse_basic_google_annotation():
@@ -139,7 +139,7 @@ def test_google_annotations_with_argparse():
     }
     
     # All should be optional due to defaults
-    parser = cli.build_dynamic_arg_parser(
+    parser = build_test_parser(
         ["PORT", "HOST", "DEBUG"],
         {},
         set(),
@@ -166,7 +166,7 @@ def test_mixed_required_optional():
         "PORT": ArgumentAnnotation(type="int", help="Port", default="8080"),  # Has default = optional
     }
     
-    parser = cli.build_dynamic_arg_parser(
+    parser = build_test_parser(
         ["SERVICE", "PORT"],
         {},
         set(),
