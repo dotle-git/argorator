@@ -44,15 +44,47 @@ argorator hello.sh --help
 
 Output:
 ```
-usage: hello.sh [-h] --name NAME --age AGE
+usage: hello [-h] --age AGE --name NAME
 
 options:
   -h, --help   show this help message and exit
-  --name NAME
   --age AGE
+  --name NAME
 ```
 
 That's it! Your script now has professional command-line options.
+
+## Add Script Descriptions
+
+Make your scripts even more professional by adding descriptions:
+
+```bash
+#!/bin/bash
+# Description: A friendly greeting script that welcomes users
+# NAME (str): The user's full name
+# AGE (int): The user's age. Default: 25
+
+echo "Hello $NAME!"
+echo "You are $AGE years old"
+```
+
+Now your help output includes the description:
+
+```bash
+argorator greet.sh --help
+```
+
+Output:
+```
+usage: greet [-h] [--age AGE] --name NAME
+
+A friendly greeting script that welcomes users
+
+options:
+  -h, --help   show this help message and exit
+  --age AGE    The user's age (default: 25)
+  --name NAME  The user's full name
+```
 
 ## Make Scripts Executable
 
