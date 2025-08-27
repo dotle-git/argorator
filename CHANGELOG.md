@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-08-27
+
 ### Added
 - Allow overriding top-level defined variables via CLI
   - Script-assigned variables at top-level are exposed as optional CLI args
