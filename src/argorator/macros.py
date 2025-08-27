@@ -31,10 +31,11 @@ _SHELL_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class _ForFrame:
-    def __init__(self, indent: str, var_name: str, expr: str) -> None:
+    def __init__(self, indent: str, var_name: str, expr: str, single_line: bool) -> None:
         self.indent = indent
         self.var_name = var_name
         self.expr = expr
+        self.single_line = single_line
         self.body_lines: List[str] = []
 
 
@@ -53,43 +54,74 @@ def expand_macros(script_text: str) -> str:
     out: List[str] = []
     stack: List[_ForFrame] = []
 
+    def close_top_frame() -> None:
+        frame = stack.pop()
+        expanded_block = []
+        expanded_block.append(_format_for_header(frame.indent, frame.var_name, frame.expr))
+        expanded_block.extend(frame.body_lines)
+        expanded_block.append(f"{frame.indent}done")
+        block_text = "\n".join(expanded_block)
+        if stack:
+            stack[-1].body_lines.append(block_text)
+        else:
+            out.append(block_text)
+
     def emit_line(line: str) -> None:
         if stack:
             stack[-1].body_lines.append(line)
         else:
             out.append(line)
 
-    for raw_line in lines:
+    # Pre-scan helper to determine if a matching # endfor exists for a given start index
+    def has_matching_endfor(start_index: int) -> bool:
+        depth = 1
+        for j in range(start_index + 1, len(lines)):
+            if _FOR_START_RE.match(lines[j]):
+                depth += 1
+            elif _FOR_END_RE.match(lines[j]):
+                depth -= 1
+                if depth == 0:
+                    return True
+        return False
+
+    i = 0
+    while i < len(lines):
+        raw_line = lines[i]
         m_start = _FOR_START_RE.match(raw_line)
         if m_start is not None:
             indent = m_start.group("indent")
             var_name = m_start.group("var")
             expr = m_start.group("expr")
-            stack.append(_ForFrame(indent, var_name, expr))
+            single_line = not has_matching_endfor(i)
+            stack.append(_ForFrame(indent, var_name, expr, single_line))
+            if single_line:
+                # Capture the next line (if any) as the body, then auto-close
+                i += 1
+                if i < len(lines):
+                    next_line = lines[i]
+                    stack[-1].body_lines.append(next_line)
+                close_top_frame()
+                # Do not process next_line again if we consumed it as body
+                i += 1
+                continue
+            i += 1
             continue
 
         if _FOR_END_RE.match(raw_line) is not None:
             if not stack:
-                # Unmatched end; pass through
                 emit_line(raw_line)
+                i += 1
                 continue
-            frame = stack.pop()
-            expanded_block = []
-            expanded_block.append(_format_for_header(frame.indent, frame.var_name, frame.expr))
-            expanded_block.extend(frame.body_lines)
-            expanded_block.append(f"{frame.indent}done")
-            block_text = "\n".join(expanded_block)
-            if stack:
-                stack[-1].body_lines.append(block_text)
-            else:
-                out.append(block_text)
+            close_top_frame()
+            i += 1
             continue
 
         emit_line(raw_line)
+        i += 1
 
-    # If there are any unclosed frames, fall back to original comment blocks
+    # If there are any unclosed frames (should not happen unless malformed), output as original comments
     while stack:
-        frame = stack.pop(0)  # preserve original order for reconstruction
+        frame = stack.pop(0)
         out.append(f"{frame.indent}# for {frame.var_name} in {frame.expr}")
         out.extend(frame.body_lines)
         out.append(f"{frame.indent}# endfor")

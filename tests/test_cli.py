@@ -97,6 +97,19 @@ echo "Processing $FILE"
 	assert rc == 0
 
 
+def test_single_line_macro_no_endfor(tmp_path: Path):
+	script_content = """#!/bin/bash
+# for N in NUMS
+echo "$N"
+
+echo after
+"""
+	script = write_temp_script(tmp_path, script_content)
+	# Should expand loop for just the next line and then continue
+	rc = cli.main(["run", str(script), "--nums", "1 2 3"])
+	assert rc == 0
+
+
 def test_help_shows_env_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
 	"""Test that environment variable defaults are shown in help text."""
 	# Set environment variables that will be used in the script

@@ -27,6 +27,25 @@ Notes:
 - The loop variable (e.g., `ITEM`) is treated as defined and will not become a CLI argument.
 - Indentation is preserved.
 
+### One-line form (no endfor required)
+
+You can omit `# endfor` and have the loop apply only to the next line:
+
+```bash
+# for N in NUMS
+echo "$N"
+echo "done"
+```
+
+Expands to:
+
+```bash
+for N in ${NUMS}; do
+echo "$N"
+done
+echo "done"
+```
+
 ### Examples
 
 - Space-separated list via CLI:
