@@ -10,21 +10,30 @@ class TestIterationMacroIntegration:
     """Integration tests for iteration macro functionality."""
     
     def _run_argorator(self, script_content: str, args: list, expect_success: bool = True):
-        """Helper to run argorator on a script with given arguments."""
+        """Helper to run argorator on a script with given arguments.
+        
+        Uses dynamic path resolution to work from any directory, avoiding hardcoded paths
+        that could cause FileNotFoundError in different environments.
+        """
         with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
             f.write(script_content)
             script_path = f.name
         
         try:
+            # Find project root (directory containing pyproject.toml)
+            current_dir = Path(__file__).parent
+            project_root = current_dir.parent  # Go up from tests/ to project root
+            src_path = project_root / 'src'
+            
             cmd = ['python3', '-m', 'argorator.cli', 'run', script_path] + args
             env = os.environ.copy()
-            env['PYTHONPATH'] = '/workspace/src'
+            env['PYTHONPATH'] = str(src_path)
             
             result = subprocess.run(
                 cmd, 
                 capture_output=True, 
                 text=True, 
-                cwd='/workspace',
+                cwd=str(project_root),
                 env=env
             )
             
