@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Pipeline stages: 1) Script analysis (7 steps), 2) Parser transformation (4 steps), 3) Argument parsing, 4) **Argument validation (0 steps - infrastructure ready)**, 5) Script compilation (4 steps), 6) Script execution (1 step)
 
 ### Fixed
-
+ - Remove accidentally committed pip installation log file `=2.0` from repo root
 ## [0.4.0] - 2025-08-27
 
 ### Added
