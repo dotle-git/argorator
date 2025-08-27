@@ -4,11 +4,11 @@ This module contains compiler functions that modify shell scripts by injecting
 variable assignments, transforming to echo mode, or generating export lines.
 All compilers use the decorator pattern and operate on the PipelineContext.
 """
-import re
 import shlex
 from typing import Dict, List
 
 from .contexts import CompileContext
+from .parsers import script_parser
 from .registry import compiler
 from .macros.processor import macro_processor
 
@@ -140,11 +140,15 @@ def transform_script_to_echo_mode(context: CompileContext) -> None:
         while idx < len(lines):
             line = lines[idx]
             # Keep variable assignment lines (NAME=...)
-            if re.match(r"^\s*[A-Za-z_][A-Za-z0-9_]*=", line):
+            try:
+                # Try to parse as a variable assignment using our unified parser
+                script_parser.variable_assignment.parse(line)
                 result_lines.append(line)
                 idx += 1
                 continue
-            break
+            except:
+                # Not a variable assignment, break
+                break
 
     # Process the rest: echo each non-empty, non-comment line
     while idx < len(lines):

@@ -10,12 +10,12 @@ All analyzers are registered using the decorator pattern and operate on the
 PipelineContext object.
 """
 import os
-import re
 from typing import Dict, Optional, Set, Tuple
 
 from .annotations import parse_arg_annotations, parse_script_description
 from .contexts import AnalysisContext
 from .models import ScriptMetadata
+from .parsers import script_parser
 from .registry import analyzer
 
 
@@ -35,7 +35,7 @@ def detect_shell_interpreter(context: AnalysisContext) -> None:
         # Normalize common shells
         if "bash" in shebang:
             context.shell_cmd = ["/bin/bash"]
-        elif re.search(r"\b(sh|dash)\b", shebang):
+        elif any(shell in shebang for shell in ["sh", "dash"]):
             context.shell_cmd = ["/bin/sh"]
         elif "zsh" in shebang:
             context.shell_cmd = ["/bin/zsh"]
@@ -54,12 +54,7 @@ def parse_defined_variables(script_text: str) -> Set[str]:
     Matches plain assignments and common declaration forms like export/local/
     declare/readonly at the start of a line.
     """
-    assignment_pattern = re.compile(
-        r"^\s*(?:export\s+|local\s+|declare(?:\s+-[a-zA-Z]+)?\s+|readonly\s+)?"
-        r"([A-Za-z_][A-Za-z0-9_]*)\s*=", 
-        re.MULTILINE
-    )
-    return set(assignment_pattern.findall(script_text))
+    return script_parser.parse_defined_variables(script_text)
 
 
 def parse_variable_usages(script_text: str) -> Set[str]:
@@ -67,12 +62,7 @@ def parse_variable_usages(script_text: str) -> Set[str]:
 
     Special shell parameters (e.g., $@, $1) are excluded; see SPECIAL_VARS.
     """
-    brace_pattern = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)[^}]*\}")
-    simple_pattern = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
-    candidates: Set[str] = set()
-    candidates.update(brace_pattern.findall(script_text))
-    candidates.update(simple_pattern.findall(script_text))
-    return {name for name in candidates if name and name not in SPECIAL_VARS}
+    return script_parser.parse_variable_usages(script_text)
 
 
 def parse_positional_usages(script_text: str) -> Tuple[Set[int], bool]:
@@ -81,13 +71,7 @@ def parse_positional_usages(script_text: str) -> Tuple[Set[int], bool]:
     Returns:
         Tuple of (positional_indices, varargs_present)
     """
-    digit_pattern = re.compile(r"\$([1-9][0-9]*)")
-    varargs_pattern = re.compile(r"\$(?:@|\*)")
-    
-    indices = {int(m) for m in digit_pattern.findall(script_text)}
-    varargs = bool(varargs_pattern.search(script_text))
-    
-    return indices, varargs
+    return script_parser.parse_positional_usages(script_text)
 
 
 @analyzer(order=20)
