@@ -21,12 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Created `context.py` with `PipelineContext` object that flows through all pipeline stages
   - Created `registry.py` with decorator-based registration system for pipeline steps
   - Refactored `analyzers.py` to use `@analyzer` decorators with ordered execution
+  - Split variable analysis into granular steps: variable usages, defined variables, undefined variables, environment variables
   - Refactored `transformers.py` to use `@transformer` decorators  
   - Refactored `compilation.py` to use `@compiler` decorators
   - Refactored `execution.py` to use `@executor` decorators
   - Updated `pipeline.py` to orchestrate stages using the registry system
   - Maintained full backward compatibility while improving extensibility and testability
   - Pipeline stages: 1) Script analysis, 2) Parser transformation, 3) Argument parsing, 4) Script compilation, 5) Script execution
+  - Analysis stage now has 7 distinct steps: shell interpreter, variable usages, defined variables, undefined variables, environment variables, positional parameters, annotations
 
 ### Fixed
 

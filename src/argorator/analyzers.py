@@ -77,25 +77,41 @@ def parse_variable_usages(script_text: str) -> Set[str]:
 
 
 @analyzer(order=20)
-def analyze_variables(context: PipelineContext) -> PipelineContext:
-    """Classify used variables into defined, undefined, and environment-backed."""
-    defined_vars = parse_defined_variables(context.script_text)
-    used_vars = parse_variable_usages(context.script_text)
-    undefined_or_env = used_vars - defined_vars
-    
-    context.defined_vars = defined_vars
+def analyze_variable_usages(context: PipelineContext) -> PipelineContext:
+    """Find all variables referenced in the script."""
+    context.all_used_vars = parse_variable_usages(context.script_text)
+    return context
+
+
+@analyzer(order=21)
+def analyze_defined_variables(context: PipelineContext) -> PipelineContext:
+    """Extract variables that are defined within the script."""
+    context.defined_vars = parse_defined_variables(context.script_text)
+    return context
+
+
+@analyzer(order=22)
+def analyze_undefined_variables(context: PipelineContext) -> PipelineContext:
+    """Identify variables that are used but not defined in the script."""
+    undefined_vars = context.all_used_vars - context.defined_vars
+    context.undefined_vars = {name: None for name in sorted(undefined_vars)}
+    return context
+
+
+@analyzer(order=23)
+def analyze_environment_variables(context: PipelineContext) -> PipelineContext:
+    """Separate undefined variables into those with environment defaults and truly undefined."""
     env_vars: Dict[str, str] = {}
-    undefined_vars: Dict[str, Optional[str]] = {}
+    remaining_undefined: Dict[str, Optional[str]] = {}
     
-    for name in sorted(undefined_or_env):
+    for name in context.undefined_vars.keys():
         if name in os.environ:
             env_vars[name] = os.environ[name]
         else:
-            undefined_vars[name] = None
+            remaining_undefined[name] = None
     
     context.env_vars = env_vars
-    context.undefined_vars = undefined_vars
-    
+    context.undefined_vars = remaining_undefined
     return context
 
 

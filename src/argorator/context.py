@@ -21,11 +21,18 @@ class PipelineContext:
         
         # Analysis results
         self.shell_cmd: List[str] = []
-        self.defined_vars: Set[str] = set()
-        self.undefined_vars: Dict[str, Optional[str]] = {}
-        self.env_vars: Dict[str, str] = {}
+        
+        # Variable analysis intermediate results
+        self.all_used_vars: Set[str] = set()  # All variables referenced in script
+        self.defined_vars: Set[str] = set()   # Variables defined within script
+        self.undefined_vars: Dict[str, Optional[str]] = {}  # Variables not defined in script
+        self.env_vars: Dict[str, str] = {}    # Variables with environment defaults
+        
+        # Positional parameter analysis
         self.positional_indices: Set[int] = set()
         self.varargs: bool = False
+        
+        # Annotation analysis
         self.annotations: Dict[str, ArgumentAnnotation] = {}
         
         # Parser and parsed arguments
