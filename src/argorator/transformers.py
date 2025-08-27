@@ -98,14 +98,10 @@ def add_positional_arguments(context: TransformContext) -> None:
         context.argument_parser.add_argument("ARGS", nargs="*")
 
 
-def get_type_converter(type_str: str):
+def get_type_converter(annotation: ArgumentAnnotation):
     """Get appropriate type converter function for argument type."""
-    if type_str == 'int':
-        return int
-    elif type_str == 'float':
-        return float
-    else:  # str, string or choice
-        return str
+    type_handler = annotation.get_type_handler()
+    return type_handler.argparse_type
 
 
 def add_variable_argument(
@@ -127,7 +123,8 @@ def add_variable_argument(
     }
     
     # Handle boolean type specially
-    if annotation.type == 'bool':
+    type_handler = annotation.get_type_handler()
+    if type_handler.type_id == 'bool':
         add_boolean_argument(
             parser, arg_names, kwargs, annotation, required, env_value, name, conflicts
         )
@@ -205,11 +202,16 @@ def add_typed_argument(
     conflicts: List
 ):
     """Add a typed (non-boolean) argument to the parser."""
-    kwargs['type'] = get_type_converter(annotation.type)
+    type_converter = get_type_converter(annotation)
+    if type_converter is not None:
+        kwargs['type'] = type_converter
     
     if env_value is not None:
         # Environment-backed variable
-        kwargs['default'] = get_type_converter(annotation.type)(env_value)
+        if type_converter is not None:
+            kwargs['default'] = type_converter(env_value)
+        else:
+            kwargs['default'] = env_value
         kwargs['required'] = False
         
         # Build help text with default value info
@@ -223,7 +225,10 @@ def add_typed_argument(
         kwargs['help'] = ' '.join(help_parts)
     elif annotation.default is not None:
         # Annotation provides default
-        kwargs['default'] = get_type_converter(annotation.type)(annotation.default)
+        if type_converter is not None:
+            kwargs['default'] = type_converter(annotation.default)
+        else:
+            kwargs['default'] = annotation.default
         kwargs['required'] = False
         if annotation.help:
             kwargs['help'] = f"{annotation.help} (default: {annotation.default})"

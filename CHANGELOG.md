@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **FEATURE**: Argument type classes system
+  - Replaced string-based type handling with object-oriented type classes
+  - Created `BaseArgumentType` abstract base class for extensible type system
+  - Added type subclasses: `StringType`, `IntType`, `FloatType`, `BoolType`, `ChoiceType`
+  - Added type alias support: `integer`→`int`, `decimal`/`number`→`float`, `boolean`→`bool`, `enum`/`select`→`choice`
+  - Improved type validation with per-type custom validation methods
+  - Maintained full backward compatibility with existing annotations
 
 ### Changed
 - **INTERNAL**: Refactored codebase to use decorator registration pattern with stage-specific Pydantic context models
