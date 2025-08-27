@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from argorator import cli
+from argorator.analyzers import parse_defined_variables, parse_variable_usages, parse_positional_usages
 
 
 SCRIPT_SIMPLE = """#!/bin/bash
@@ -32,15 +33,15 @@ def test_parse_defined_and_used_vars():
 	BAR=2
 	echo "$FOO $BAR $BAZ"
 	"""
-	defined = cli.parse_defined_variables(text)
-	used = cli.parse_variable_usages(text)
+	defined = parse_defined_variables(text)
+	used = parse_variable_usages(text)
 	assert "FOO" in defined and "BAR" in defined
 	assert "BAZ" in used and "FOO" in used and "BAR" in used
 
 
 def test_parse_positionals_and_varargs():
 	text = "echo $1 $2; echo $@"
-	idx, varargs = cli.parse_positional_usages(text)
+	idx, varargs = parse_positional_usages(text)
 	assert idx == {1, 2}
 	assert varargs is True
 

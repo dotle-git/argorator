@@ -11,7 +11,7 @@ PipelineContext object.
 """
 import os
 import re
-from typing import Dict, Optional, Set
+from typing import Dict, Optional, Set, Tuple
 
 from .annotations import parse_arg_annotations
 from .contexts import AnalysisContext
@@ -74,6 +74,21 @@ def parse_variable_usages(script_text: str) -> Set[str]:
     return {name for name in candidates if name and name not in SPECIAL_VARS}
 
 
+def parse_positional_usages(script_text: str) -> Tuple[Set[int], bool]:
+    """Extract positional parameter indices and varargs usage from script.
+    
+    Returns:
+        Tuple of (positional_indices, varargs_present)
+    """
+    digit_pattern = re.compile(r"\$([1-9][0-9]*)")
+    varargs_pattern = re.compile(r"\$(?:@|\*)")
+    
+    indices = {int(m) for m in digit_pattern.findall(script_text)}
+    varargs = bool(varargs_pattern.search(script_text))
+    
+    return indices, varargs
+
+
 @analyzer(order=20)
 def analyze_variable_usages(context: AnalysisContext) -> None:
     """Find all variables referenced in the script."""
@@ -112,12 +127,7 @@ def analyze_environment_variables(context: AnalysisContext) -> None:
 @analyzer(order=30)
 def analyze_positional_parameters(context: AnalysisContext) -> None:
     """Detect positional parameter usage and varargs references in the script."""
-    digit_pattern = re.compile(r"\$([1-9][0-9]*)")
-    varargs_pattern = re.compile(r"\$(?:@|\*)")
-    
-    indices = {int(m) for m in digit_pattern.findall(context.script_text)}
-    varargs = bool(varargs_pattern.search(context.script_text))
-    
+    indices, varargs = parse_positional_usages(context.script_text)
     context.positional_indices = indices
     context.varargs = varargs
 
