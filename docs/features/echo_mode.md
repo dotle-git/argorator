@@ -6,7 +6,7 @@ permalink: /docs/features/echo_mode/
 
 # Echo Mode (Dry Run)
 
-Added in Unreleased
+Added in 0.4.0
 
 Preview what your script would do without executing any commands. Echo mode rewrites each non-comment command line to an `echo "..."` form that prints the exact command line the script would run after variable expansion, while safely neutralizing pipes and operators.
 

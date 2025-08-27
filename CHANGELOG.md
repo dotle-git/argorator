@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.4.0] - 2025-08-27
+
+### Added
 - New `--echo` option to preview what the script would execute without running it
   - Works with `run` (prints commands while doing no work) and `compile` (prints echo-transformed script)
   - Special handling for pipes and operators by quoting entire original lines
