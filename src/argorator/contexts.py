@@ -12,7 +12,12 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator
 from .models import ArgumentAnnotation
 
 
-class AnalysisContext(BaseModel):
+class BaseContext(BaseModel):
+    """Base class for all pipeline contexts."""
+    pass
+
+
+class AnalysisContext(BaseContext):
     """Context for the analysis stage - script analysis only."""
     model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True, extra='forbid')
 
@@ -47,7 +52,7 @@ class AnalysisContext(BaseModel):
         return v
 
 
-class TransformContext(BaseModel):
+class TransformContext(BaseContext):
     """Context for the transform stage - parser building only."""
     model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True, extra='forbid')
 
@@ -70,7 +75,7 @@ class TransformContext(BaseModel):
         return self.script_path.name if self.script_path else None
 
 
-class ValidateContext(BaseModel):
+class ValidateContext(BaseContext):
     """Context for the validate stage - argument validation and transformation only."""
     model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True, extra='forbid')
 
@@ -83,7 +88,7 @@ class ValidateContext(BaseModel):
     temp_data: Dict[str, Any] = Field(default_factory=dict, description="Temporary data for pipeline steps")
 
 
-class CompileContext(BaseModel):
+class CompileContext(BaseContext):
     """Context for the compile stage - script compilation only."""
     model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True, extra='forbid')
 
@@ -93,6 +98,10 @@ class CompileContext(BaseModel):
     echo_mode: bool = Field(default=False, description="Whether to run in echo mode")
     positional_indices: Set[int] = Field(default_factory=set, description="Positional parameter indices used")
     varargs: bool = Field(default=False, description="Whether script uses varargs ($@ or $*)")
+    
+    # Variable information needed for compilation
+    undefined_vars: Dict[str, Optional[str]] = Field(default_factory=dict, description="Variables not defined in script")
+    env_vars: Dict[str, str] = Field(default_factory=dict, description="Variables with environment defaults")
 
     # OUTPUTS: What compile produces
     compiled_script: str = Field(default="", description="Compiled script with injected variables")
@@ -103,7 +112,7 @@ class CompileContext(BaseModel):
     temp_data: Dict[str, Any] = Field(default_factory=dict, description="Temporary data for pipeline steps")
 
 
-class ExecuteContext(BaseModel):
+class ExecuteContext(BaseContext):
     """Context for the execute stage - script execution only."""
     model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True, extra='forbid')
 
@@ -159,7 +168,9 @@ def create_compile_context(
         parsed_args=validate.parsed_args,
         echo_mode=echo_mode,
         positional_indices=analysis.positional_indices,
-        varargs=analysis.varargs
+        varargs=analysis.varargs,
+        undefined_vars=analysis.undefined_vars,
+        env_vars=analysis.env_vars
     )
 
 

@@ -7,98 +7,72 @@ import argparse
 from pathlib import Path
 from typing import Dict, Set, List, Optional
 
-from .pipeline import PipelineData
-from .contexts import AnalysisContext, TransformContext
+from .contexts import (
+    AnalysisContext, TransformContext, 
+    create_transform_context
+)
 from .models import ArgumentAnnotation
 from .registry import pipeline_registry
 
+# Import all modules to register their decorated functions
+from . import analyzers, transformers, validators, compilation, execution
 
-def create_test_pipeline_data(
+
+def create_test_analysis_context(
     script_text: str = "",
-    undefined_vars: Optional[List[str]] = None,
-    env_vars: Optional[Dict[str, str]] = None,
-    positional_indices: Optional[Set[int]] = None,
-    varargs: bool = False,
-    annotations: Optional[Dict[str, ArgumentAnnotation]] = None
-) -> PipelineData:
-    """Create pipeline data for testing purposes.
+    script_path: Optional[Path] = None,
+    command: str = "run"
+) -> AnalysisContext:
+    """Create AnalysisContext for testing purposes.
     
     Args:
         script_text: The script content
-        undefined_vars: List of undefined variables
-        env_vars: Environment variables with defaults
-        positional_indices: Set of positional parameter indices
-        varargs: Whether script uses varargs
-        annotations: Variable annotations
+        script_path: Path to the script file
+        command: The command to execute
         
     Returns:
-        PipelineData configured for testing
+        AnalysisContext configured for testing
     """
-    data = PipelineData()
-    data.update(
+    return AnalysisContext(
         script_text=script_text,
-        undefined_vars={var: None for var in (undefined_vars or [])},
-        env_vars=env_vars or {},
-        positional_indices=positional_indices or set(),
-        varargs=varargs,
-        annotations=annotations or {}
+        script_path=script_path or Path("test.sh"),
+        command=command
     )
-    return data
 
 
-def run_analysis_stage(script_text: str) -> PipelineData:
+def run_analysis_stage(script_text: str) -> AnalysisContext:
     """Run only the analysis stage for testing.
     
     Args:
         script_text: Script content to analyze
         
     Returns:
-        PipelineData with analysis results
+        AnalysisContext with analysis results
     """
-    data = PipelineData()
-    data.update(
-        command="run",
-        script_path=Path("test.sh"),
-        echo_mode=False,
-        rest_args=[],
-        script_text=script_text
-    )
-    
-    # Create analysis context and run analyzers
-    stage_fields = AnalysisContext.model_fields.keys()
-    filtered_data = {k: v for k, v in data.data.items() if k in stage_fields}
-    stage_context = AnalysisContext(**filtered_data)
+    analysis = create_test_analysis_context(script_text)
     
     # Run analysis stage
-    pipeline_registry.execute_stage('analyze', stage_context)
+    pipeline_registry.execute_stage('analyze', analysis)
     
-    # Update pipeline data with results
-    data.data.update(stage_context.model_dump())
-    
-    return data
+    return analysis
 
 
-def run_transform_stage(data: PipelineData) -> argparse.ArgumentParser:
+def run_transform_stage(analysis: AnalysisContext) -> TransformContext:
     """Run only the transform stage for testing.
     
     Args:
-        data: Pipeline data with analysis results
+        analysis: AnalysisContext with analysis results
         
     Returns:
-        Built ArgumentParser
+        TransformContext with built ArgumentParser
     """
     # Create transform context and run transformers
-    stage_fields = TransformContext.model_fields.keys()
-    filtered_data = {k: v for k, v in data.data.items() if k in stage_fields}
-    stage_context = TransformContext(**filtered_data)
+    transform = create_transform_context(analysis)
     
     # Run transform stage
-    pipeline_registry.execute_stage('transform', stage_context)
+    pipeline_registry.execute_stage('transform', transform)
     
-    # Update pipeline data with results
-    data.data.update(stage_context.model_dump())
-    
-    return data.get('argument_parser')
+    return transform
 
 
 def build_test_parser(
@@ -123,9 +97,12 @@ def build_test_parser(
     Returns:
         Built ArgumentParser
     """
-    # Create test pipeline data
-    data = create_test_pipeline_data(
-        undefined_vars=undefined_vars,
+    # Create test analysis context with the required data
+    analysis = AnalysisContext(
+        script_text="",  # Not needed for parser building
+        script_path=Path("test.sh"),
+        command="run",
+        undefined_vars={var: None for var in undefined_vars},
         env_vars=env_vars,
         positional_indices=positional_indices,
         varargs=varargs,
@@ -133,24 +110,25 @@ def build_test_parser(
     )
     
     # Run transform stage to build parser
-    return run_transform_stage(data)
+    transform = run_transform_stage(analysis)
+    
+    return transform.argument_parser
 
 
-def run_pipeline_stages(script_text: str, rest_args: List[str]) -> PipelineData:
+def run_pipeline_stages(script_text: str, rest_args: List[str]) -> tuple[AnalysisContext, TransformContext]:
     """Run analysis and transform stages for testing.
     
     Args:
         script_text: Script content to analyze
-        rest_args: Command line arguments to parse
+        rest_args: Command line arguments to parse (not used in this function)
         
     Returns:
-        PipelineData with analysis and transform results
+        Tuple of (AnalysisContext, TransformContext) with results
     """
     # Run analysis
-    data = run_analysis_stage(script_text)
-    data.set('rest_args', rest_args)
+    analysis = run_analysis_stage(script_text)
     
     # Run transform
-    run_transform_stage(data)
+    transform = run_transform_stage(analysis)
     
-    return data
+    return analysis, transform
