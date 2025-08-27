@@ -93,12 +93,46 @@ class Pipeline:
         
         return "argorator"
     
+    def _extract_script_description_from_args(self, argv: List[str]) -> Optional[str]:
+        """Extract script description from the script file for help display.
+        
+        Args:
+            argv: Command line arguments
+            
+        Returns:
+            Script description if found, None otherwise
+        """
+        # Look for script argument after subcommand
+        # Expected format: ['compile', 'script.sh', ...]
+        if len(argv) >= 2:
+            script_arg = argv[1]
+            # Skip if this is a flag (starts with -)
+            if script_arg.startswith('-'):
+                return None
+            
+            try:
+                script_path = Path(script_arg)
+                if script_path.exists() and script_path.is_file():
+                    # Read the script and parse description
+                    script_text = script_path.read_text(encoding="utf-8")
+                    # Import here to avoid circular import
+                    from .annotations import parse_script_description
+                    return parse_script_description(script_text)
+            except Exception:
+                # If file reading/parsing fails, return None
+                pass
+        
+        return None
+    
     def _parse_explicit_subcommand(self, argv: List[str]) -> PipelineCommand:
         """Parse explicit subcommand invocation."""
         # Extract script name early for proper program name in help
         script_name = self._extract_script_name_from_args(argv)
         
-        parser = build_top_level_parser(script_name)
+        # Extract script description early for proper help display
+        script_description = self._extract_script_description_from_args(argv)
+        
+        parser = build_top_level_parser(script_name, script_description)
         ns, unknown = parser.parse_known_args(argv)
         command = ns.subcmd or "run"
         script_arg: Optional[str] = getattr(ns, "script", None)
