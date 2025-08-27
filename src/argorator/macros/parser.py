@@ -201,43 +201,88 @@ class MacroParser:
         """Parse an iteration macro comment into a structured object."""
         content = comment.content
         
-        # Pattern: for ITERATOR in SOURCE | with PARAM1 PARAM2
-        pattern = r'for\s+(\w+)\s+in\s+([^|]+)(?:\s*\|\s*with\s+(.+))?'
-        match = re.match(pattern, content, re.IGNORECASE)
+        # Enhanced pattern to support "as Type" syntax:
+        # for ITERATOR in SOURCE | with PARAM1 PARAM2
+        # for ITERATOR in (SOURCE as TYPE) | with PARAM1 PARAM2
+        # for ITERATOR in SOURCE as TYPE | with PARAM1 PARAM2
         
-        if not match:
-            raise ValueError(f"Invalid iteration macro syntax: {content}")
+        # First, handle parenthesized format
+        paren_pattern = r'for\s+(\w+)\s+in\s+\(([^)]+?)\s+as\s+(\w+)\)\s*(?:\|\s*with\s+(.+))?'
+        paren_match = re.match(paren_pattern, content, re.IGNORECASE)
         
-        iterator_var = match.group(1)
-        source = match.group(2).strip()
-        additional_params = []
+        if paren_match:
+            iterator_var = paren_match.group(1)
+            source = paren_match.group(2).strip()
+            source_type = paren_match.group(3).lower()
+            additional_params = []
+            if paren_match.group(4):
+                additional_params = [p.strip() for p in paren_match.group(4).split()]
+        else:
+            # Handle non-parenthesized format
+            # First try to match with "as TYPE" 
+            as_pattern = r'for\s+(\w+)\s+in\s+(.+?)\s+as\s+(\w+)\s*(?:\|\s*with\s+(.+))?'
+            as_match = re.match(as_pattern, content, re.IGNORECASE)
+            
+            if as_match:
+                iterator_var = as_match.group(1)
+                source = as_match.group(2).strip()
+                source_type = as_match.group(3).lower()
+                additional_params = []
+                if as_match.group(4):
+                    additional_params = [p.strip() for p in as_match.group(4).split()]
+            else:
+                # No "as TYPE", just normal format
+                pattern = r'for\s+(\w+)\s+in\s+(.+?)(?:\|\s*with\s+(.+?))?$'
+                match = re.match(pattern, content, re.IGNORECASE)
+                
+                if not match:
+                    raise ValueError(f"Invalid iteration macro syntax: {content}")
+                
+                iterator_var = match.group(1)
+                source = match.group(2).strip()
+                source_type = None
+                additional_params = []
+                
+                if match.group(3):
+                    additional_params = [p.strip() for p in match.group(3).split()]
         
-        if match.group(3):
-            additional_params = [p.strip() for p in match.group(3).split()]
-        
-        # Determine iteration type
-        iteration_type = self._detect_iteration_type(source)
+        # Determine iteration type (will be enhanced later with type mapping)
+        iteration_type = self._detect_iteration_type(source, source_type)
         
         return IterationMacro(
             comment=comment,
             target=target,
             iterator_var=iterator_var,
             source=source,
+            source_type=source_type,
             iteration_type=iteration_type,
             additional_params=additional_params
         )
     
-    def _detect_iteration_type(self, source: str) -> str:
-        """Detect the type of iteration based on source."""
-        if source.startswith('$') and ('FILE' in source.upper() or 'INPUT' in source.upper()):
-            return 'file_lines'
-        elif '*' in source or '?' in source or '[' in source:
+    def _detect_iteration_type(self, source: str, source_type: Optional[str] = None) -> str:
+        """Detect the type of iteration based on source and explicit type."""
+        # If explicit type is provided, use it
+        if source_type:
+            if source_type == 'file':
+                return 'file_lines'
+            elif source_type == 'array':
+                return 'array'
+            elif source_type == 'pattern':
+                return 'pattern'
+            elif source_type == 'range':
+                return 'range'
+            elif source_type == 'directory':
+                return 'directory'
+        
+        # Fall back to heuristic detection (legacy behavior)
+        if '*' in source or '?' in source or '[' in source:
             return 'pattern'
         elif source.startswith('{') and '..' in source and source.endswith('}'):
             return 'range'
         elif source.endswith('/') or source.endswith('*/'):
             return 'directory'
         else:
+            # Default to array iteration for variables
             return 'array'
 
 # Global parser instance

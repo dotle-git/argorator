@@ -41,6 +41,7 @@ class IterationMacro(BaseModel):
     target: Optional[MacroTarget] = None
     iterator_var: str
     source: str
+    source_type: Optional[str] = None  # Explicit type like 'file', 'array', etc.
     iteration_type: str  # 'file_lines', 'array', 'pattern', etc.
     additional_params: List[str] = []
     

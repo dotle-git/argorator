@@ -1,5 +1,5 @@
 """Main macro processor that integrates with existing Argorator pipeline."""
-from typing import List, Dict
+from typing import List, Dict, Optional
 from .parser import macro_parser
 from .models import IterationMacro, MacroComment, MacroTarget
 
@@ -8,6 +8,11 @@ class MacroProcessor:
     
     def __init__(self):
         self.parser = macro_parser
+        self.variable_types: Dict[str, str] = {}  # Map variable names to their types
+    
+    def set_variable_types(self, variable_types: Dict[str, str]) -> None:
+        """Set variable type information from argument annotations."""
+        self.variable_types = variable_types.copy()
     
     def process_macros(self, script_text: str) -> str:
         """Process all macros in the script and return transformed script."""
@@ -25,6 +30,8 @@ class MacroProcessor:
                 if target:
                     try:
                         iteration_macro = self.parser.parse_iteration_macro(comment, target)
+                        # Enhance iteration type based on variable type information
+                        self._enhance_iteration_type(iteration_macro)
                         processed_macros.append(iteration_macro)
                     except ValueError as e:
                         # Log error but don't fail the entire process
@@ -64,6 +71,31 @@ class MacroProcessor:
         del lines[macro.comment.line_number]
         
         return lines
+    
+    def _enhance_iteration_type(self, macro: IterationMacro) -> None:
+        """Enhance iteration type based on variable type information."""
+        # If explicit type is already provided, keep it
+        if macro.source_type:
+            return
+        
+        # Extract variable name from source (handle $VAR format)
+        source = macro.source.strip()
+        if source.startswith('$'):
+            var_name = source[1:]  # Remove $
+            # Handle ${VAR} format
+            if var_name.startswith('{') and var_name.endswith('}'):
+                var_name = var_name[1:-1]
+            
+            # Look up variable type and update iteration type
+            if var_name in self.variable_types:
+                var_type = self.variable_types[var_name]
+                if var_type == 'file':
+                    macro.iteration_type = 'file_lines'
+                    macro.source_type = 'file'
+                # Add more type mappings as needed
+                elif var_type in ['array', 'list']:
+                    macro.iteration_type = 'array'
+                    macro.source_type = 'array'
     
     def validate_macros(self, script_text: str) -> List[str]:
         """Validate macros and return any error messages."""

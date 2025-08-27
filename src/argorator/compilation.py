@@ -17,6 +17,17 @@ from .macros.processor import macro_processor
 def process_iteration_macros(context: CompileContext) -> None:
     """Process iteration macros and transform them into bash loops."""
     try:
+        # Extract variable types from annotations and pass to macro processor
+        variable_types = {}
+        
+        # Get types from argument annotations (if available)
+        if context.annotations:
+            for var_name, annotation in context.annotations.items():
+                variable_types[var_name] = annotation.type
+        
+        # Set variable types in macro processor
+        macro_processor.set_variable_types(variable_types)
+        
         # Validate macros first
         errors = macro_processor.validate_macros(context.script_text)
         if errors:

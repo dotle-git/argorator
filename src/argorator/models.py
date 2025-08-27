@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 class ArgumentAnnotation(BaseModel):
     """Model for a single argument annotation."""
     
-    type: Literal['str', 'int', 'float', 'bool', 'choice'] = Field(
+    type: Literal['str', 'int', 'float', 'bool', 'choice', 'file'] = Field(
         default='str',
         description="The argument type"
     )

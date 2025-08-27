@@ -16,14 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **NEW FEATURE**: Iteration macros for simplified bash loops using Python-style syntax
   - `# for iterator in source` comments transform lines or functions into bash loops
-  - Supports file line iteration: `# for line in $FILE`
-  - Supports pattern iteration: `# for file in *.txt`
+  - **Type-based iteration**: Uses argument annotation types to determine iteration behavior
+    - `# VAR (file): description` automatically triggers file line iteration for `$VAR`
+    - `# VAR (str): description` triggers array iteration for `$VAR`
+  - **Explicit type casting**: `# for line in $VAR as file` forces specific iteration types
+  - **Flexible syntax**: Supports both `$VAR as type` and `($VAR as type)` formats
+  - Supports pattern iteration: `# for file in *.txt` 
   - Supports range iteration: `# for i in {1..10}`
-  - Supports array iteration: `# for item in $ARRAY`
   - Function annotation: macros before function definitions generate loops that call the function
   - Parameter passing: `# for file in *.txt | with $OUTPUT_DIR` passes additional parameters
   - Uses parsy-based parser for accurate bash function detection and transformation
   - Integrates seamlessly with existing variable system and CLI argument parsing
+  - **Backward compatible**: Existing scripts continue working unchanged
 
 ### Changed
 - **INTERNAL**: Refactored codebase to use decorator registration pattern with stage-specific Pydantic context models

@@ -49,6 +49,10 @@ cat "$line"'''
 class TestIterationMacros:
     """Test iteration macro processing."""
     
+    def setup_method(self):
+        """Reset macro processor state before each test."""
+        macro_processor.set_variable_types({})
+    
     def test_simple_line_macro(self):
         """Test macro that applies to a single line."""
         script = '''# for file in *.txt
@@ -58,6 +62,42 @@ echo "Processing $file"'''
         expected = '''for file in *.txt; do
     echo "Processing $file"
 done'''
+        assert result.strip() == expected.strip()
+    
+    def test_file_type_annotation(self):
+        """Test macro with file type from annotation."""
+        script = '''# for line in $INPUT_FILE
+echo "Processing: $line"'''
+        
+        # Set variable type information
+        macro_processor.set_variable_types({'INPUT_FILE': 'file'})
+        
+        result = macro_processor.process_macros(script)
+        expected = '''while IFS= read -r line; do
+    echo "Processing: $line"
+done < $INPUT_FILE'''
+        assert result.strip() == expected.strip()
+    
+    def test_explicit_as_file_syntax(self):
+        """Test macro with explicit 'as file' syntax."""
+        script = '''# for line in $DATA as file
+echo "Processing: $line"'''
+        
+        result = macro_processor.process_macros(script)
+        expected = '''while IFS= read -r line; do
+    echo "Processing: $line"
+done < $DATA'''
+        assert result.strip() == expected.strip()
+    
+    def test_parenthesized_as_syntax(self):
+        """Test macro with parenthesized 'as type' syntax."""
+        script = '''# for line in ($INPUT_FILE as file)
+echo "Processing: $line"'''
+        
+        result = macro_processor.process_macros(script)
+        expected = '''while IFS= read -r line; do
+    echo "Processing: $line"
+done < $INPUT_FILE'''
         assert result.strip() == expected.strip()
     
     def test_function_macro(self):
@@ -76,10 +116,13 @@ process_log() {
         assert 'process_log "$file"' in result
         assert "done" in result
     
-    def test_file_lines_iteration(self):
-        """Test iteration over file lines."""
+    def test_file_lines_iteration_with_type(self):
+        """Test iteration over file lines using type information."""
         script = '''# for line in $INPUT_FILE
 echo "Line: $line"'''
+        
+        # Set file type to trigger file_lines iteration
+        macro_processor.set_variable_types({'INPUT_FILE': 'file'})
         
         result = macro_processor.process_macros(script)
         expected = '''while IFS= read -r line; do
@@ -139,22 +182,27 @@ process_log() {
 class TestMacroIntegration:
     """Test macro integration with the compilation pipeline."""
     
-    def test_macro_with_variables(self):
-        """Test that macros work with Argorator variables."""
-        script = '''# INPUT_FILE (str): File to process
+    def setup_method(self):
+        """Reset macro processor state before each test."""
+        macro_processor.set_variable_types({})
+    
+    def test_macro_with_file_type_annotation(self):
+        """Test that macros work with file type annotations."""
+        script = '''# INPUT_FILE (file): File to process
 # OUTPUT_DIR (str): Output directory
 
 # for line in $INPUT_FILE
 echo "Processing: $line" > "$OUTPUT_DIR/processed.txt"'''
         
-        # The macro processor should transform the loop
-        # while leaving variable annotations for the existing system
+        # Simulate the type information that would come from annotations
+        macro_processor.set_variable_types({'INPUT_FILE': 'file', 'OUTPUT_DIR': 'str'})
+        
         result = macro_processor.process_macros(script)
         
         # Should still have variable annotations
-        assert "# INPUT_FILE (str)" in result
+        assert "# INPUT_FILE (file)" in result
         assert "# OUTPUT_DIR (str)" in result
         
-        # Should have transformed macro
+        # Should have transformed macro to file_lines iteration
         assert "while IFS= read -r line; do" in result
         assert "done < $INPUT_FILE" in result
