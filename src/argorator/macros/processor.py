@@ -37,6 +37,9 @@ class MacroProcessor:
                         # Log error but don't fail the entire process
                         print(f"Warning: Failed to parse macro on line {comment.line_number + 1}: {e}")
         
+        # Validate macro combinations and detect conflicts
+        self._validate_macro_combinations(processed_macros)
+        
         # Apply transformations
         return self._apply_transformations(script_text, processed_macros)
     
@@ -100,6 +103,48 @@ class MacroProcessor:
                 elif var_type in ['array', 'list']:
                     macro.iteration_type = 'array'
                     macro.source_type = 'array'
+    
+    def _validate_macro_combinations(self, macros: List[IterationMacro]) -> None:
+        """Validate macro combinations and detect conflicts."""
+        # Group macros by their target lines
+        target_groups = {}
+        function_macros = []
+        
+        for macro in macros:
+            if macro.target.target_type == 'function':
+                function_macros.append(macro)
+            else:
+                # Group line-based macros by target line
+                target_line = macro.target.start_line
+                if target_line not in target_groups:
+                    target_groups[target_line] = []
+                target_groups[target_line].append(macro)
+        
+        # Check for multiple macros targeting the same line
+        for target_line, line_macros in target_groups.items():
+            if len(line_macros) > 1:
+                raise ValueError(
+                    f"Multiple iteration macros target the same line {target_line + 1}. "
+                    f"This creates ambiguous nested loops. Please use separate lines or combine into a single macro."
+                )
+        
+        # Check for function macros with internal conflicts
+        for func_macro in function_macros:
+            # Find any line macros that fall within this function's range
+            func_start = func_macro.target.start_line
+            func_end = func_macro.target.end_line
+            
+            conflicting_lines = []
+            for target_line, line_macros in target_groups.items():
+                if func_start < target_line < func_end:
+                    conflicting_lines.extend(line_macros)
+            
+            if conflicting_lines:
+                raise ValueError(
+                    f"Function macro at line {func_macro.comment.line_number + 1} conflicts with "
+                    f"internal macros. Function-level iteration macros cannot contain additional "
+                    f"iteration macros inside the function body."
+                )
     
     def validate_macros(self, script_text: str) -> List[str]:
         """Validate macros and return any error messages."""

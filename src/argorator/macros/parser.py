@@ -169,8 +169,16 @@ class MacroParser:
         """Find what a macro applies to (function or line after it)."""
         lines = script_text.split('\n')
         
-        # Look at the line immediately after the macro
+        # Skip over consecutive macro comments to find the actual target
         target_line = macro_line + 1
+        while target_line < len(lines):
+            line = lines[target_line].strip()
+            # If this line is also a macro comment, skip it
+            if line.startswith('#') and self._detect_macro_type(line[1:].strip()):
+                target_line += 1
+                continue
+            break
+        
         if target_line >= len(lines):
             return None
         
@@ -211,10 +219,10 @@ class MacroParser:
             (r'(.+?)\s+sep\s+([\'"])(.+?)\2(?:\s+|$)', 3),
             # "separated by X" syntax (quoted)  
             (r'(.+?)\s+separated\s+by\s+([\'"])(.+?)\2(?:\s+|$)', 3),
-            # "sep X" syntax (unquoted)
-            (r'(.+?)\s+sep\s+([^\s|]+)(?:\s+|$)', 2),
-            # "separated by X" syntax (unquoted)
-            (r'(.+?)\s+separated\s+by\s+([^\s|]+)(?:\s+|$)', 2),
+            # "sep X" syntax (unquoted) - match any non-whitespace character(s)
+            (r'(.+?)\s+sep\s+(\S+)(?:\s+|$)', 2),
+            # "separated by X" syntax (unquoted) - match any non-whitespace character(s)
+            (r'(.+?)\s+separated\s+by\s+(\S+)(?:\s+|$)', 2),
         ]
         
         for pattern, sep_group in separator_patterns:

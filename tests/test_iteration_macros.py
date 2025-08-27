@@ -329,3 +329,134 @@ write_item() {
         assert "IFS=',' read -ra ARGORATOR_ARRAY_" in result
         assert 'write_item "$item" "$OUTPUT_FILE"' in result
         assert "done" in result
+
+class TestEdgeCasesAndValidation:
+    """Test edge cases and validation scenarios."""
+    
+    def setup_method(self):
+        """Reset macro processor state before each test."""
+        macro_processor.set_variable_types({})
+    
+    def test_multiple_macros_same_line_conflict(self):
+        """Test that multiple macros targeting the same line are detected as conflicts."""
+        script = '''# for file in *.txt
+# for line in $file as file  
+echo "Processing $file: $line"'''
+        
+        errors = macro_processor.validate_macros(script)
+        # Should detect the conflict during processing
+        try:
+            result = macro_processor.process_macros(script)
+            assert False, "Should have raised ValueError for conflicting macros"
+        except ValueError as e:
+            assert "Multiple iteration macros target the same line" in str(e)
+    
+    def test_function_macro_with_internal_macro_conflict(self):
+        """Test that function macros with internal macros are detected as conflicts."""
+        script = '''# for file in *.log
+process_file() {
+    echo "Processing file: $1"
+    # for line in $1 as file
+    echo "Line: $line"
+}'''
+        
+        try:
+            result = macro_processor.process_macros(script)
+            assert False, "Should have raised ValueError for function macro conflict"
+        except ValueError as e:
+            assert "Function macro at line 1 conflicts with internal macros" in str(e)
+    
+    def test_macro_in_if_block_allowed(self):
+        """Test that macros within if blocks are allowed and work correctly."""
+        script = '''if [ "$ENABLE_PROCESSING" = "true" ]; then
+    # for item in $LIST sep ,
+    echo "Processing: $item"
+fi'''
+        
+        result = macro_processor.process_macros(script)
+        
+        # Should work correctly
+        assert "if [" in result
+        assert "IFS=',' read -ra ARGORATOR_ARRAY_" in result
+        assert "for item in" in result
+        assert "fi" in result
+    
+    def test_macro_in_existing_loop_allowed(self):
+        """Test that macros within existing loops are allowed and work correctly."""
+        script = '''for dir in */; do
+    echo "Processing directory: $dir"
+    # for file in $dir/*.txt
+    echo "Found: $file"
+done'''
+        
+        result = macro_processor.process_macros(script)
+        
+        # Should create properly nested loops
+        assert "for dir in */" in result
+        assert "for file in $dir/*.txt" in result
+        assert result.count("done") == 2  # Two "done" statements for nested loops
+    
+    def test_valid_sequential_macros(self):
+        """Test that macros on separate lines work correctly."""
+        script = '''# for file in *.txt
+echo "Processing file: $file"
+
+# for line in $ANOTHER_FILE as file
+echo "Processing line: $line"'''
+        
+        result = macro_processor.process_macros(script)
+        
+        # Should create two separate loops
+        assert "for file in *.txt" in result
+        assert "while IFS= read -r line" in result
+        assert result.count("done") == 2
+    
+    def test_function_macro_without_internal_macros_allowed(self):
+        """Test that function macros without internal macros work correctly."""
+        script = '''# for file in *.log
+process_file() {
+    echo "Processing file: $1"
+    grep "ERROR" "$1" > "$1.errors"
+}'''
+        
+        result = macro_processor.process_macros(script)
+        
+        # Should contain function definition and external loop
+        assert "process_file() {" in result
+        assert "for file in *.log" in result
+        assert 'process_file "$file"' in result
+        assert "done" in result
+    
+    def test_malformed_macro_validation(self):
+        """Test validation catches malformed macros."""
+        script = '''# for item in
+echo "test"'''
+        
+        errors = macro_processor.validate_macros(script)
+        assert len(errors) > 0
+    
+    def test_mixed_supported_scenarios(self):
+        """Test complex but supported combinations of macros."""
+        script = '''# Process individual files
+# for file in *.txt
+echo "Text file: $file"
+
+# Process CSV data
+# for item in $CSV_DATA sep ,
+echo "CSV item: $item"
+
+# Function-based processing (no internal macros)
+# for log in *.log
+analyze_log() {
+    echo "Analyzing: $1"
+    wc -l "$1"
+}'''
+        
+        result = macro_processor.process_macros(script)
+        
+        # Should process all three macros successfully
+        assert "for file in *.txt" in result
+        assert "IFS=',' read -ra ARGORATOR_ARRAY_" in result
+        assert "for log in *.log" in result
+        assert 'analyze_log "$log"' in result
+        assert result.count("done") >= 3

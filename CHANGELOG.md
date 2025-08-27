@@ -28,6 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Uses parsy-based parser for accurate bash function detection and transformation
   - Integrates seamlessly with existing variable system and CLI argument parsing
   - **Backward compatible**: Existing scripts continue working unchanged
+- **NEW FEATURE**: Delimited string iteration with flexible separator syntax
+  - `# for item in $CSV_DATA sep ,` for simple separators
+  - `# for field in $PATH separated by :` for readable syntax
+  - `# for part in $TEXT separated by "::"` for multi-character separators
+  - `# for line in $DATA separated by "\\n"` with escape sequence support
+  - Smart single vs multi-character separator handling in generated bash
+- **ROBUST EDGE CASE HANDLING**: Comprehensive validation and conflict detection
+  - **Prevents multiple macros targeting the same line**: Clear error messages for ambiguous nested loops
+  - **Detects function macro conflicts**: Prevents function-level macros with internal macro conflicts
+  - **Supports nested contexts**: Macros work correctly within if blocks, existing loops, etc.
+  - **Intelligent target detection**: Skips over consecutive macro comments to find actual code targets
+  - **Clear error messages**: Specific guidance for resolving macro conflicts
 
 ### Changed
 - **INTERNAL**: Refactored codebase to use decorator registration pattern with stage-specific Pydantic context models
