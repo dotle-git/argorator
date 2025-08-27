@@ -214,3 +214,37 @@ done'''.format(
                 iterator_var=self.iterator_var,
                 target_line=target_line
             )
+
+
+class SafetyMacro(BaseModel):
+    """Represents a bash safety/configuration macro."""
+    comment: MacroComment
+    safety_type: str  # 'set_strict', 'trap_cleanup', etc.
+    options: List[str] = []  # Additional options/parameters
+    
+    def generate_transformation(self) -> str:
+        """Generate the bash safety code."""
+        if self.safety_type == 'set_strict':
+            return self._generate_set_strict()
+        elif self.safety_type == 'trap_cleanup':
+            return self._generate_trap_cleanup()
+        else:
+            raise ValueError(f"Unknown safety macro type: {self.safety_type}")
+    
+    def _generate_set_strict(self) -> str:
+        """Generate strict bash mode settings."""
+        # Default strict mode: exit on error, undefined vars, pipe failures
+        return "set -eou --pipefail"
+    
+    def _generate_trap_cleanup(self) -> str:
+        """Generate trap cleanup handler."""
+        # Basic trap that calls cleanup function on EXIT, ERR, INT, TERM
+        return '''# Cleanup trap handler
+cleanup() {
+    local exit_code=$?
+    echo "Cleaning up..." >&2
+    # Add your cleanup code here
+    exit $exit_code
+}
+
+trap cleanup EXIT ERR INT TERM'''

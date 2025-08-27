@@ -2,7 +2,7 @@
 import parsy
 import re
 from typing import List, Optional, Tuple
-from .models import FunctionBlock, MacroComment, IterationMacro, MacroTarget
+from .models import FunctionBlock, MacroComment, IterationMacro, MacroTarget, SafetyMacro
 
 class MacroParser:
     """Parser focused specifically on macro processing needs."""
@@ -156,6 +156,12 @@ class MacroParser:
         # Iteration macro: for VAR in SOURCE (stricter pattern)
         if re.match(r'for\s+\w+\s+in\s+\S+', content, re.IGNORECASE):
             return 'iteration'
+        
+        # Safety macros: set strict, trap cleanup
+        if re.match(r'set\s+strict\b', content, re.IGNORECASE):
+            return 'safety'
+        if re.match(r'trap\s+cleanup\b', content, re.IGNORECASE):
+            return 'safety'
         
         # Future macro types can be added here
         # if re.match(r'parallel', content, re.IGNORECASE):
@@ -374,6 +380,27 @@ class MacroParser:
                 return False
         
         return True
+    
+    def parse_safety_macro(self, comment: MacroComment) -> SafetyMacro:
+        """Parse a safety macro comment into a structured object."""
+        content = comment.content.lower().strip()
+        
+        if content.startswith('set strict'):
+            safety_type = 'set_strict'
+            # Could potentially extract additional options in the future
+            options = []
+        elif content.startswith('trap cleanup'):
+            safety_type = 'trap_cleanup'
+            # Could potentially extract cleanup function name or other options
+            options = []
+        else:
+            raise ValueError(f"Unknown safety macro type: {content}")
+        
+        return SafetyMacro(
+            comment=comment,
+            safety_type=safety_type,
+            options=options
+        )
 
 # Global parser instance
 macro_parser = MacroParser()

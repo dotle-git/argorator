@@ -216,6 +216,72 @@ Generated bash handles everything automatically:
 - Proper quoting and error handling
 - Function parameter passing
 
+## 🛡️ Safety Macros: Bulletproof Your Scripts
+
+**NEW!** Add safety features to your bash scripts with simple comments.
+
+### Strict Mode
+
+Enable bash strict mode with error handling:
+
+```bash
+#!/usr/bin/env argorator
+
+# set strict
+
+echo "Processing $FILE"
+# Script will exit immediately on:
+# - Any command failure (set -e)
+# - Undefined variables (set -u) 
+# - Pipe failures (set -o pipefail)
+```
+
+### Cleanup Traps
+
+Add automatic cleanup on script exit:
+
+```bash
+#!/usr/bin/env argorator
+
+# trap cleanup
+
+echo "Starting processing..."
+echo "This script will cleanup automatically on exit/error"
+```
+
+Generated cleanup handler:
+```bash
+set -eou --pipefail
+
+# Cleanup trap handler
+cleanup() {
+    local exit_code=$?
+    echo "Cleaning up..." >&2
+    # Add your cleanup code here
+    exit $exit_code
+}
+
+trap cleanup EXIT ERR INT TERM
+```
+
+### Use Both Together
+
+```bash
+#!/usr/bin/env argorator
+
+# set strict
+# trap cleanup
+
+echo "Ultra-safe script processing $INPUT_FILE"
+```
+
+Safety macros provide:
+- Immediate error detection and exit
+- Undefined variable protection  
+- Pipeline failure detection
+- Automatic cleanup on any exit condition
+- Professional error handling patterns
+
 ## Before and After
 
 ### Before: Manual argument parsing (painful!)

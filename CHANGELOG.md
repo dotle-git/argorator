@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Safety macros for bash scripts: `# set strict` and `# trap cleanup` for automatic error handling and cleanup
+- Support for bash "set -eou --pipefail" via `# set strict` macro
+- Support for bash trap cleanup handlers via `# trap cleanup` macro
+
 ### Changed
 
 ### Fixed
