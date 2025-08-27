@@ -1,5 +1,6 @@
 import pytest
 from pathlib import Path
+from argorator import cli
 from argorator.annotations import parse_arg_annotations
 from argorator.models import ArgumentAnnotation
 from argorator.testing import build_test_parser
