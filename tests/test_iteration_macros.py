@@ -1,7 +1,7 @@
 """Tests for iteration macro functionality."""
 import pytest
-from src.argorator.macros.processor import macro_processor
-from src.argorator.macros.parser import macro_parser
+from argorator.macros.processor import macro_processor
+from argorator.macros.parser import macro_parser
 
 class TestMacroParser:
     """Test the macro parser functionality."""
