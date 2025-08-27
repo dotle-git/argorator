@@ -1,21 +1,27 @@
-"""Main pipeline orchestrator for Argorator.
+"""Main pipeline orchestrator for Argorator using decorator pattern.
 
-This module provides the main Pipeline class that coordinates all stages:
-1. Script analysis to extract information
-2. Parser transformation to build argparse interfaces  
-3. Argument parsing to get actual values
-4. Script compilation to transform the script
-5. Script execution or output generation
+This module provides the main Pipeline class that coordinates all stages using
+the decorator registration system:
+1. Command line parsing
+2. Script analysis to extract information
+3. Parser transformation to build argparse interfaces  
+4. Argument parsing to get actual values
+5. Script compilation to transform the script
+6. Script execution or output generation
 """
 import argparse
 import sys
 from pathlib import Path
 from typing import List, Optional, Sequence
 
-from .analyzers import ScriptAnalyzer, ScriptAnalysisResult
-from .compilation import ArgumentProcessor, ScriptCompiler
-from .execution import FileHandler, ScriptExecutor
-from .transformers import ArgumentParserTransformer, TopLevelParserTransformer
+from .compilation import generate_export_lines
+from .context import PipelineContext
+from .execution import read_text_file, validate_script_path
+from .registry import pipeline_registry
+from .transformers import build_top_level_parser
+
+# Import all modules to register their decorated functions
+from . import analyzers, transformers, compilation, execution
 
 
 class PipelineCommand:
@@ -29,15 +35,10 @@ class PipelineCommand:
 
 
 class Pipeline:
-    """Main pipeline class that orchestrates all processing stages."""
+    """Main pipeline class that orchestrates all processing stages using decorator pattern."""
     
     def __init__(self):
-        self.analyzer = ScriptAnalyzer()
-        self.parser_transformer = ArgumentParserTransformer()
-        self.compiler = ScriptCompiler()
-        self.executor = ScriptExecutor()
-        self.file_handler = FileHandler()
-        self.arg_processor = ArgumentProcessor()
+        self.registry = pipeline_registry
     
     def parse_command_line(self, argv: Optional[Sequence[str]] = None) -> PipelineCommand:
         """Parse command line arguments to determine pipeline execution mode.
@@ -59,7 +60,7 @@ class Pipeline:
     
     def _parse_explicit_subcommand(self, argv: List[str]) -> PipelineCommand:
         """Parse explicit subcommand invocation."""
-        parser = TopLevelParserTransformer.build_top_level_parser()
+        parser = build_top_level_parser()
         ns, unknown = parser.parse_known_args(argv)
         command = ns.subcmd or "run"
         script_arg: Optional[str] = getattr(ns, "script", None)
@@ -70,7 +71,7 @@ class Pipeline:
             print("error: script path is required", file=sys.stderr)
             sys.exit(2)
         
-        script_path = self.file_handler.validate_script_path(script_arg)
+        script_path = validate_script_path(script_arg)
         return PipelineCommand(command, script_path, echo_mode, rest_args)
     
     def _parse_implicit_run(self, argv: List[str]) -> PipelineCommand:
@@ -108,126 +109,56 @@ class Pipeline:
                 continue
             filtered_rest.append(token)
         
-        script_path = self.file_handler.validate_script_path(script_arg)
+        script_path = validate_script_path(script_arg)
         return PipelineCommand(command, script_path, echo_mode, filtered_rest)
     
-    def analyze_script(self, script_path: Path) -> ScriptAnalysisResult:
-        """Stage 1: Run script analyzers to extract information from the bash script.
-        
-        Args:
-            script_path: Path to the script to analyze
-            
-        Returns:
-            ScriptAnalysisResult containing all extracted information
-        """
-        script_text = self.file_handler.read_text_file(script_path)
-        return self.analyzer.analyze_script(script_path, script_text)
+    def initialize_context(self, command: PipelineCommand) -> PipelineContext:
+        """Initialize the pipeline context from command parameters."""
+        context = PipelineContext()
+        context.command = command.command
+        context.script_path = command.script_path
+        context.echo_mode = command.echo_mode
+        context.rest_args = command.rest_args
+        context.script_text = read_text_file(command.script_path)
+        return context
     
-    def build_argument_parser(self, analysis_result: ScriptAnalysisResult) -> argparse.ArgumentParser:
-        """Stage 2: Transform analysis results into an argparse parser.
-        
-        Args:
-            analysis_result: Results from script analysis
-            
-        Returns:
-            Configured ArgumentParser for the script
-        """
-        script_name = analysis_result.script_path.name if analysis_result.script_path else None
-        return self.parser_transformer.build_dynamic_arg_parser(analysis_result, script_name)
+    def run_analysis_stage(self, context: PipelineContext) -> PipelineContext:
+        """Stage 1: Run script analyzers to extract information from the bash script."""
+        return self.registry.execute_stage('analyze', context)
     
-    def parse_arguments(self, parser: argparse.ArgumentParser, args: List[str]) -> argparse.Namespace:
-        """Stage 3: Parse arguments to get actual values.
+    def run_transform_stage(self, context: PipelineContext) -> PipelineContext:
+        """Stage 2: Transform analysis results into an argparse parser."""
+        return self.registry.execute_stage('transform', context)
+    
+    def parse_arguments(self, context: PipelineContext) -> PipelineContext:
+        """Stage 3: Parse arguments to get actual values."""
+        if not context.argument_parser:
+            raise ValueError("No argument parser available")
         
-        Args:
-            parser: ArgumentParser configured for the script
-            args: Command line arguments to parse
-            
-        Returns:
-            Namespace containing parsed argument values
-        """
         try:
-            return parser.parse_args(args)
+            context.parsed_args = context.argument_parser.parse_args(context.rest_args)
         except SystemExit as exc:
             sys.exit(int(exc.code))
+        
+        return context
     
-    def compile_script(
-        self, 
-        analysis_result: ScriptAnalysisResult, 
-        parsed_args: argparse.Namespace,
-        echo_mode: bool = False
-    ) -> str:
-        """Stage 4: Compile the script with variable assignments and transformations.
-        
-        Args:
-            analysis_result: Results from script analysis
-            parsed_args: Parsed command line arguments
-            echo_mode: Whether to transform script to echo mode
-            
-        Returns:
-            Compiled script text ready for execution
-        """
-        # Collect variable assignments
-        undefined_vars = sorted(analysis_result.undefined_vars.keys())
-        assignments = self.arg_processor.collect_variable_assignments(
-            parsed_args, undefined_vars, analysis_result.env_vars
-        )
-        
-        # Inject variable assignments
-        modified_text = self.compiler.inject_variable_assignments(
-            analysis_result.script_text, assignments
-        )
-        
-        # Apply echo transformation if requested
-        if echo_mode:
-            modified_text = self.compiler.transform_script_to_echo_mode(modified_text)
-        
-        return modified_text
+    def run_compilation_stage(self, context: PipelineContext) -> PipelineContext:
+        """Stage 4: Compile the script with variable assignments and transformations."""
+        return self.registry.execute_stage('compile', context)
     
-    def execute_script(
-        self, 
-        analysis_result: ScriptAnalysisResult,
-        parsed_args: argparse.Namespace,
-        compiled_script: str
-    ) -> int:
-        """Stage 5: Execute the compiled script.
-        
-        Args:
-            analysis_result: Results from script analysis
-            parsed_args: Parsed command line arguments
-            compiled_script: Compiled script text
-            
-        Returns:
-            Exit code from script execution
-        """
-        # Collect positional arguments
-        positional_values = self.arg_processor.collect_positional_values(
-            parsed_args, analysis_result.positional_indices, analysis_result.varargs
-        )
-        
-        # Execute the script
-        return self.executor.run_script_with_args(
-            analysis_result.shell_cmd, compiled_script, positional_values
-        )
+    def run_execution_stage(self, context: PipelineContext) -> PipelineContext:
+        """Stage 5: Execute the compiled script."""
+        return self.registry.execute_stage('execute', context)
     
-    def generate_export_lines(
-        self, 
-        analysis_result: ScriptAnalysisResult, 
-        parsed_args: argparse.Namespace
-    ) -> str:
-        """Generate export lines for variable assignments.
-        
-        Args:
-            analysis_result: Results from script analysis
-            parsed_args: Parsed command line arguments
-            
-        Returns:
-            Export lines as a string
-        """
-        undefined_vars = sorted(analysis_result.undefined_vars.keys())
-        assignments = self.arg_processor.collect_variable_assignments(
-            parsed_args, undefined_vars, analysis_result.env_vars
-        )
-        return self.compiler.generate_export_lines(assignments)
+    def generate_output(self, context: PipelineContext) -> str:
+        """Generate output based on the command type."""
+        if context.command == "export":
+            return generate_export_lines(context.variable_assignments)
+        elif context.command == "compile":
+            return context.compiled_script
+        else:
+            # For run command, output is handled by execution stage
+            return ""
     
     def run(self, command: PipelineCommand) -> int:
         """Run the complete pipeline with the given command.
@@ -239,30 +170,35 @@ class Pipeline:
             Exit code (0 for success)
         """
         try:
+            # Initialize context
+            context = self.initialize_context(command)
+            
             # Stage 1: Analyze script
-            analysis_result = self.analyze_script(command.script_path)
+            context = self.run_analysis_stage(context)
             
             # Stage 2: Build argument parser
-            parser = self.build_argument_parser(analysis_result)
+            context = self.run_transform_stage(context)
             
             # Stage 3: Parse arguments
-            parsed_args = self.parse_arguments(parser, command.rest_args)
-            
-            # Execute based on command type
-            if command.command == "export":
-                export_lines = self.generate_export_lines(analysis_result, parsed_args)
-                print(export_lines)
-                return 0
+            context = self.parse_arguments(context)
             
             # Stage 4: Compile script
-            compiled_script = self.compile_script(analysis_result, parsed_args, command.echo_mode)
+            context = self.run_compilation_stage(context)
             
-            if command.command == "compile":
-                print(compiled_script, end="" if compiled_script.endswith("\n") else "\n")
+            # Generate output for export/compile commands
+            if context.command in ["export", "compile"]:
+                output = self.generate_output(context)
+                if output:
+                    # Handle line ending consistency
+                    if context.command == "compile":
+                        print(output, end="" if output.endswith("\n") else "\n")
+                    else:
+                        print(output)
                 return 0
             
             # Stage 5: Execute script (run command)
-            return self.execute_script(analysis_result, parsed_args, compiled_script)
+            context = self.run_execution_stage(context)
+            return context.exit_code
             
         except FileNotFoundError as e:
             print(f"error: {e}", file=sys.stderr)

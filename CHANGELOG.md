@@ -16,13 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
-- **INTERNAL**: Refactored codebase to use clear pipeline architecture
-  - Created `analyzers.py` module with dedicated script analysis classes
-  - Created `transformers.py` module for argparse parser building
-  - Created `compilation.py` module for script transformation steps  
-  - Created `execution.py` module for script execution and file handling
-  - Created `pipeline.py` module as main orchestrator coordinating all stages
-  - Refactored `cli.py` to use the new pipeline architecture while maintaining backward compatibility
+- **INTERNAL**: Refactored codebase to use decorator registration pattern with context object
+  - Replaced static methods with module-level functions using decorator registration
+  - Created `context.py` with `PipelineContext` object that flows through all pipeline stages
+  - Created `registry.py` with decorator-based registration system for pipeline steps
+  - Refactored `analyzers.py` to use `@analyzer` decorators with ordered execution
+  - Refactored `transformers.py` to use `@transformer` decorators  
+  - Refactored `compilation.py` to use `@compiler` decorators
+  - Refactored `execution.py` to use `@executor` decorators
+  - Updated `pipeline.py` to orchestrate stages using the registry system
+  - Maintained full backward compatibility while improving extensibility and testability
   - Pipeline stages: 1) Script analysis, 2) Parser transformation, 3) Argument parsing, 4) Script compilation, 5) Script execution
 
 ### Fixed
