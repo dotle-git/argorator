@@ -168,9 +168,11 @@ argorator analyze.sh --logfile /var/log/app.log
 Process matching files:
 
 ```bash
+#!/usr/bin/env argorator
+
 # for image in *.jpg
-echo "Converting: $image"
-convert "$image" "thumbnails/${image%.jpg}_thumb.jpg"
+    echo "Converting: $image"
+    convert "$image" "thumbnails/${image%.jpg}_thumb.jpg"
 ```
 
 ### Delimited Data Processing
@@ -178,17 +180,19 @@ convert "$image" "thumbnails/${image%.jpg}_thumb.jpg"
 Handle CSV, paths, and custom separators:
 
 ```bash
+#!/usr/bin/env argorator
+
 # CSV_DATA (str): Comma-separated values  
 # PATHS (str): Colon-separated paths
 
 # for item in $CSV_DATA sep ,
-echo "Item: $item"
+    echo "Item: $item"
 
 # for path in $PATHS separated by :
-echo "Path: $path"  
+    echo "Path: $path"  
 
 # for field in $DATA separated by "::"
-echo "Field: $field"
+    echo "Field: $field"
 ```
 
 ### Function-Based Processing
@@ -196,6 +200,8 @@ echo "Field: $field"
 Use functions for complex processing:
 
 ```bash
+#!/usr/bin/env argorator
+
 # for file in *.log
 analyze_log() {
     echo "=== Analyzing $1 ==="
