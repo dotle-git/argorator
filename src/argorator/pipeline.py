@@ -12,16 +12,35 @@ the decorator registration system:
 import argparse
 import sys
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Dict, Any
 
 from .compilation import generate_export_lines
-from .contexts import FullPipelineContext, create_stage_context, update_full_context
+from .contexts import (
+    AnalysisContext, TransformContext, ValidateContext, 
+    CompileContext, ExecuteContext
+)
 from .execution import validate_script_path
 from .registry import pipeline_registry
 from .transformers import build_top_level_parser
 
 # Import all modules to register their decorated functions
 from . import analyzers, transformers, validators, compilation, execution
+
+
+class PipelineData:
+    """Simple data holder for pipeline state."""
+    
+    def __init__(self):
+        self.data: Dict[str, Any] = {}
+    
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.data.get(key, default)
+    
+    def set(self, key: str, value: Any) -> None:
+        self.data[key] = value
+    
+    def update(self, **kwargs) -> None:
+        self.data.update(kwargs)
 
 
 class PipelineCommand:
@@ -112,62 +131,107 @@ class Pipeline:
         script_path = validate_script_path(script_arg)
         return PipelineCommand(command, script_path, echo_mode, filtered_rest)
     
-    def initialize_context(self, command: PipelineCommand) -> FullPipelineContext:
-        """Initialize the pipeline context from command parameters."""
-        context = FullPipelineContext()
-        context.command = command.command
-        context.script_path = command.script_path
-        context.echo_mode = command.echo_mode
-        context.rest_args = command.rest_args
-        context.script_text = command.script_path.read_text(encoding="utf-8")
-        return context
+    def initialize_data(self, command: PipelineCommand) -> PipelineData:
+        """Initialize the pipeline data from command parameters."""
+        data = PipelineData()
+        data.update(
+            command=command.command,
+            script_path=command.script_path,
+            echo_mode=command.echo_mode,
+            rest_args=command.rest_args,
+            script_text=command.script_path.read_text(encoding="utf-8")
+        )
+        return data
     
-    def run_analysis_stage(self, context: FullPipelineContext) -> None:
+    def create_stage_context(self, data: PipelineData, stage: str) -> Any:
+        """Create a stage-specific context from pipeline data."""
+        pipeline_dict = data.data
+        
+        if stage == 'analyze':
+            # Only pass fields that AnalysisContext expects
+            stage_fields = AnalysisContext.model_fields.keys()
+            filtered_data = {k: v for k, v in pipeline_dict.items() if k in stage_fields}
+            return AnalysisContext(**filtered_data)
+        elif stage == 'transform':
+            # Only pass fields that TransformContext expects
+            stage_fields = TransformContext.model_fields.keys()
+            filtered_data = {k: v for k, v in pipeline_dict.items() if k in stage_fields}
+            return TransformContext(**filtered_data)
+        elif stage == 'validate':
+            # Only pass fields that ValidateContext expects
+            stage_fields = ValidateContext.model_fields.keys()
+            filtered_data = {k: v for k, v in pipeline_dict.items() if k in stage_fields}
+            return ValidateContext(**filtered_data)
+        elif stage == 'compile':
+            # Only pass fields that CompileContext expects
+            stage_fields = CompileContext.model_fields.keys()
+            filtered_data = {k: v for k, v in pipeline_dict.items() if k in stage_fields}
+            return CompileContext(**filtered_data)
+        elif stage == 'execute':
+            # Only pass fields that ExecuteContext expects
+            stage_fields = ExecuteContext.model_fields.keys()
+            filtered_data = {k: v for k, v in pipeline_dict.items() if k in stage_fields}
+            return ExecuteContext(**filtered_data)
+        else:
+            raise ValueError(f"Unknown stage: {stage}")
+    
+    def update_pipeline_data(self, data: PipelineData, stage_context: Any) -> None:
+        """Update pipeline data with changes from a stage-specific context."""
+        # Get the updated data from the stage context
+        stage_data = stage_context.model_dump()
+        
+        # Update the pipeline data
+        data.data.update(stage_data)
+    
+    def run_analysis_stage(self, data: PipelineData) -> None:
         """Stage 1: Run script analyzers to extract information from the bash script."""
-        stage_context = create_stage_context(context, 'analyze')
+        stage_context = self.create_stage_context(data, 'analyze')
         self.registry.execute_stage('analyze', stage_context)
-        update_full_context(context, stage_context)
+        self.update_pipeline_data(data, stage_context)
     
-    def run_transform_stage(self, context: FullPipelineContext) -> None:
+    def run_transform_stage(self, data: PipelineData) -> None:
         """Stage 2: Transform analysis results into an argparse parser."""
-        stage_context = create_stage_context(context, 'transform')
+        stage_context = self.create_stage_context(data, 'transform')
         self.registry.execute_stage('transform', stage_context)
-        update_full_context(context, stage_context)
+        self.update_pipeline_data(data, stage_context)
     
-    def parse_arguments(self, context: FullPipelineContext) -> None:
+    def parse_arguments(self, data: PipelineData) -> None:
         """Stage 3: Parse arguments to get actual values."""
-        if not context.argument_parser:
+        argument_parser = data.get('argument_parser')
+        if not argument_parser:
             raise ValueError("No argument parser available")
         
         try:
-            context.parsed_args = context.argument_parser.parse_args(context.rest_args)
+            parsed_args = argument_parser.parse_args(data.get('rest_args', []))
+            data.set('parsed_args', parsed_args)
         except SystemExit as exc:
             sys.exit(int(exc.code))
     
-    def run_validation_stage(self, context: FullPipelineContext) -> None:
+    def run_validation_stage(self, data: PipelineData) -> None:
         """Stage 4: Validate and transform parsed arguments."""
-        stage_context = create_stage_context(context, 'validate')
+        stage_context = self.create_stage_context(data, 'validate')
         self.registry.execute_stage('validate', stage_context)
-        update_full_context(context, stage_context)
+        self.update_pipeline_data(data, stage_context)
     
-    def run_compilation_stage(self, context: FullPipelineContext) -> None:
+    def run_compilation_stage(self, data: PipelineData) -> None:
         """Stage 5: Compile the script with variable assignments and transformations."""
-        stage_context = create_stage_context(context, 'compile')
+        stage_context = self.create_stage_context(data, 'compile')
         self.registry.execute_stage('compile', stage_context)
-        update_full_context(context, stage_context)
+        self.update_pipeline_data(data, stage_context)
     
-    def run_execution_stage(self, context: FullPipelineContext) -> None:
+    def run_execution_stage(self, data: PipelineData) -> None:
         """Stage 6: Execute the compiled script."""
-        stage_context = create_stage_context(context, 'execute')
+        stage_context = self.create_stage_context(data, 'execute')
         self.registry.execute_stage('execute', stage_context)
-        update_full_context(context, stage_context)
+        self.update_pipeline_data(data, stage_context)
     
-    def generate_output(self, context: FullPipelineContext) -> str:
+    def generate_output(self, data: PipelineData) -> str:
         """Generate output based on the command type."""
-        if context.command == "export":
-            return generate_export_lines(context.variable_assignments)
-        elif context.command == "compile":
-            return context.compiled_script
+        command = data.get('command')
+        if command == "export":
+            return generate_export_lines(data.get('variable_assignments', {}))
+        elif command == "compile":
+            return data.get('compiled_script', '')
         else:
             # For run command, output is handled by execution stage
             return ""
@@ -182,38 +246,39 @@ class Pipeline:
             Exit code (0 for success)
         """
         try:
-            # Initialize context
-            context = self.initialize_context(command)
+            # Initialize pipeline data
+            data = self.initialize_data(command)
             
             # Stage 1: Analyze script
-            self.run_analysis_stage(context)
+            self.run_analysis_stage(data)
             
             # Stage 2: Build argument parser
-            self.run_transform_stage(context)
+            self.run_transform_stage(data)
             
             # Stage 3: Parse arguments
-            self.parse_arguments(context)
+            self.parse_arguments(data)
             
             # Stage 4: Validate and transform arguments
-            self.run_validation_stage(context)
+            self.run_validation_stage(data)
             
             # Stage 5: Compile script
-            self.run_compilation_stage(context)
+            self.run_compilation_stage(data)
             
             # Generate output for export/compile commands
-            if context.command in ["export", "compile"]:
-                output = self.generate_output(context)
+            command_type = data.get('command')
+            if command_type in ["export", "compile"]:
+                output = self.generate_output(data)
                 if output:
                     # Handle line ending consistency
-                    if context.command == "compile":
+                    if command_type == "compile":
                         print(output, end="" if output.endswith("\n") else "\n")
                     else:
                         print(output)
                 return 0
             
             # Stage 6: Execute script (run command)
-            self.run_execution_stage(context)
-            return context.exit_code
+            self.run_execution_stage(data)
+            return data.get('exit_code', 0)
             
         except FileNotFoundError as e:
             print(f"error: {e}", file=sys.stderr)
