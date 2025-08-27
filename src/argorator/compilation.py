@@ -8,15 +8,15 @@ import re
 import shlex
 from typing import Dict, List
 
-from .context import PipelineContext
+from .contexts import CompileContext
 from .registry import compiler
 
 
 @compiler(order=10)
-def collect_variable_assignments(context: PipelineContext) -> PipelineContext:
+def collect_variable_assignments(context: CompileContext) -> None:
     """Collect resolved variable assignments from parsed arguments."""
     if not context.parsed_args:
-        return context
+        return
     
     assignments: Dict[str, str] = {}
     undefined_vars = sorted(context.undefined_vars.keys())
@@ -42,14 +42,13 @@ def collect_variable_assignments(context: PipelineContext) -> PipelineContext:
             assignments[name] = str(value)
     
     context.variable_assignments = assignments
-    return context
 
 
 @compiler(order=20)
-def collect_positional_values(context: PipelineContext) -> PipelineContext:
+def collect_positional_values(context: CompileContext) -> None:
     """Collect positional argument values from parsed arguments."""
     if not context.parsed_args:
-        return context
+        return
     
     positional_values: List[str] = []
     
@@ -64,11 +63,10 @@ def collect_positional_values(context: PipelineContext) -> PipelineContext:
         positional_values.extend([str(v) for v in getattr(context.parsed_args, "ARGS", [])])
     
     context.positional_values = positional_values
-    return context
 
 
 @compiler(order=30)
-def inject_variable_assignments(context: PipelineContext) -> PipelineContext:
+def inject_variable_assignments(context: CompileContext) -> None:
     """Insert shell assignments for provided variables at the top of the script."""
     script_text = context.script_text
     assignments = context.variable_assignments
@@ -87,14 +85,13 @@ def inject_variable_assignments(context: PipelineContext) -> PipelineContext:
         modified_text = injection_block + script_text
     
     context.compiled_script = modified_text
-    return context
 
 
 @compiler(order=40)
-def transform_script_to_echo_mode(context: PipelineContext) -> PipelineContext:
+def transform_script_to_echo_mode(context: CompileContext) -> None:
     """Transform the script for echo mode if requested."""
     if not context.echo_mode:
-        return context
+        return
     
     script_text = context.compiled_script
     lines = script_text.splitlines()
@@ -140,7 +137,6 @@ def transform_script_to_echo_mode(context: PipelineContext) -> PipelineContext:
 
     # Ensure trailing newline behavior matches input
     context.compiled_script = "\n".join(result_lines) + ("\n" if script_text.endswith("\n") else "")
-    return context
 
 
 def generate_export_lines(assignments: Dict[str, str]) -> str:

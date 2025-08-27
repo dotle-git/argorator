@@ -14,7 +14,7 @@ import re
 from typing import Dict, Optional, Set
 
 from .annotations import parse_arg_annotations
-from .context import PipelineContext
+from .contexts import AnalysisContext
 from .registry import analyzer
 
 
@@ -22,7 +22,7 @@ SPECIAL_VARS: Set[str] = {"@", "*", "#", "?", "$", "!", "0"}
 
 
 @analyzer(order=10)
-def detect_shell_interpreter(context: PipelineContext) -> PipelineContext:
+def detect_shell_interpreter(context: AnalysisContext) -> None:
     """Detect the shell interpreter command for the script.
 
     Honors a shebang if present, normalizing to a common shell path. Defaults to
@@ -45,8 +45,6 @@ def detect_shell_interpreter(context: PipelineContext) -> PipelineContext:
     else:
         # Default
         context.shell_cmd = ["/bin/bash"]
-    
-    return context
 
 
 def parse_defined_variables(script_text: str) -> Set[str]:
@@ -77,29 +75,26 @@ def parse_variable_usages(script_text: str) -> Set[str]:
 
 
 @analyzer(order=20)
-def analyze_variable_usages(context: PipelineContext) -> PipelineContext:
+def analyze_variable_usages(context: AnalysisContext) -> None:
     """Find all variables referenced in the script."""
     context.all_used_vars = parse_variable_usages(context.script_text)
-    return context
 
 
 @analyzer(order=21)
-def analyze_defined_variables(context: PipelineContext) -> PipelineContext:
+def analyze_defined_variables(context: AnalysisContext) -> None:
     """Extract variables that are defined within the script."""
     context.defined_vars = parse_defined_variables(context.script_text)
-    return context
 
 
 @analyzer(order=22)
-def analyze_undefined_variables(context: PipelineContext) -> PipelineContext:
+def analyze_undefined_variables(context: AnalysisContext) -> None:
     """Identify variables that are used but not defined in the script."""
     undefined_vars = context.all_used_vars - context.defined_vars
     context.undefined_vars = {name: None for name in sorted(undefined_vars)}
-    return context
 
 
 @analyzer(order=23)
-def analyze_environment_variables(context: PipelineContext) -> PipelineContext:
+def analyze_environment_variables(context: AnalysisContext) -> None:
     """Separate undefined variables into those with environment defaults and truly undefined."""
     env_vars: Dict[str, str] = {}
     remaining_undefined: Dict[str, Optional[str]] = {}
@@ -112,11 +107,10 @@ def analyze_environment_variables(context: PipelineContext) -> PipelineContext:
     
     context.env_vars = env_vars
     context.undefined_vars = remaining_undefined
-    return context
 
 
 @analyzer(order=30)
-def analyze_positional_parameters(context: PipelineContext) -> PipelineContext:
+def analyze_positional_parameters(context: AnalysisContext) -> None:
     """Detect positional parameter usage and varargs references in the script."""
     digit_pattern = re.compile(r"\$([1-9][0-9]*)")
     varargs_pattern = re.compile(r"\$(?:@|\*)")
@@ -126,12 +120,9 @@ def analyze_positional_parameters(context: PipelineContext) -> PipelineContext:
     
     context.positional_indices = indices
     context.varargs = varargs
-    
-    return context
 
 
 @analyzer(order=40)
-def analyze_annotations(context: PipelineContext) -> PipelineContext:
+def analyze_annotations(context: AnalysisContext) -> None:
     """Parse comment-based annotations for argument metadata."""
     context.annotations = parse_arg_annotations(context.script_text)
-    return context

@@ -6,12 +6,12 @@ argument passing and shell detection using the decorator pattern.
 import subprocess
 from pathlib import Path
 
-from .context import PipelineContext
+from .contexts import ExecuteContext
 from .registry import executor
 
 
 @executor(order=10)
-def execute_script(context: PipelineContext) -> PipelineContext:
+def execute_script(context: ExecuteContext) -> None:
     """Execute the compiled script with shell and positional arguments."""
     cmd = list(context.shell_cmd) + ["-s", "--"] + context.positional_values
     process = subprocess.Popen(cmd, stdin=subprocess.PIPE, text=True)
@@ -19,7 +19,6 @@ def execute_script(context: PipelineContext) -> PipelineContext:
     process.stdin.write(context.compiled_script)
     process.stdin.close()
     context.exit_code = process.wait()
-    return context
 
 
 def read_text_file(file_path: Path) -> str:

@@ -7,13 +7,13 @@ handles a specific aspect of parser construction.
 import argparse
 from typing import Dict, List
 
-from .context import PipelineContext
+from .contexts import TransformContext
 from .models import ArgumentAnnotation
 from .registry import transformer
 
 
 @transformer(order=10)
-def create_base_parser(context: PipelineContext) -> PipelineContext:
+def create_base_parser(context: TransformContext) -> None:
     """Create the base ArgumentParser with conflict detection."""
     # Detect conflicts between environment defaults and annotation defaults
     conflicts = []
@@ -42,12 +42,10 @@ def create_base_parser(context: PipelineContext) -> PipelineContext:
     
     # Store conflicts for use by other transformers
     context.temp_data['conflicts'] = conflicts
-    
-    return context
 
 
 @transformer(order=20)
-def add_undefined_variable_arguments(context: PipelineContext) -> PipelineContext:
+def add_undefined_variable_arguments(context: TransformContext) -> None:
     """Add required arguments for undefined variables."""
     if not context.argument_parser:
         raise ValueError("Base parser must be created first")
@@ -64,12 +62,10 @@ def add_undefined_variable_arguments(context: PipelineContext) -> PipelineContex
             env_value=None,
             conflicts=conflicts
         )
-    
-    return context
 
 
 @transformer(order=30)
-def add_environment_variable_arguments(context: PipelineContext) -> PipelineContext:
+def add_environment_variable_arguments(context: TransformContext) -> None:
     """Add optional arguments for environment variables."""
     if not context.argument_parser:
         raise ValueError("Base parser must be created first")
@@ -85,12 +81,10 @@ def add_environment_variable_arguments(context: PipelineContext) -> PipelineCont
             env_value=value,
             conflicts=conflicts
         )
-    
-    return context
 
 
 @transformer(order=40)
-def add_positional_arguments(context: PipelineContext) -> PipelineContext:
+def add_positional_arguments(context: TransformContext) -> None:
     """Add positional arguments for script parameters."""
     if not context.argument_parser:
         raise ValueError("Base parser must be created first")
@@ -102,8 +96,6 @@ def add_positional_arguments(context: PipelineContext) -> PipelineContext:
     # Add varargs if needed
     if context.varargs:
         context.argument_parser.add_argument("ARGS", nargs="*")
-    
-    return context
 
 
 def get_type_converter(type_str: str):

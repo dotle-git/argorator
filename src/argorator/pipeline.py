@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence
 
 from .compilation import generate_export_lines
-from .context import PipelineContext
+from .contexts import FullPipelineContext, create_stage_context, update_full_context
 from .execution import read_text_file, validate_script_path
 from .registry import pipeline_registry
 from .transformers import build_top_level_parser
@@ -112,9 +112,9 @@ class Pipeline:
         script_path = validate_script_path(script_arg)
         return PipelineCommand(command, script_path, echo_mode, filtered_rest)
     
-    def initialize_context(self, command: PipelineCommand) -> PipelineContext:
+    def initialize_context(self, command: PipelineCommand) -> FullPipelineContext:
         """Initialize the pipeline context from command parameters."""
-        context = PipelineContext()
+        context = FullPipelineContext()
         context.command = command.command
         context.script_path = command.script_path
         context.echo_mode = command.echo_mode
@@ -122,15 +122,19 @@ class Pipeline:
         context.script_text = read_text_file(command.script_path)
         return context
     
-    def run_analysis_stage(self, context: PipelineContext) -> PipelineContext:
+    def run_analysis_stage(self, context: FullPipelineContext) -> None:
         """Stage 1: Run script analyzers to extract information from the bash script."""
-        return self.registry.execute_stage('analyze', context)
+        stage_context = create_stage_context(context, 'analyze')
+        self.registry.execute_stage('analyze', stage_context)
+        update_full_context(context, stage_context)
     
-    def run_transform_stage(self, context: PipelineContext) -> PipelineContext:
+    def run_transform_stage(self, context: FullPipelineContext) -> None:
         """Stage 2: Transform analysis results into an argparse parser."""
-        return self.registry.execute_stage('transform', context)
+        stage_context = create_stage_context(context, 'transform')
+        self.registry.execute_stage('transform', stage_context)
+        update_full_context(context, stage_context)
     
-    def parse_arguments(self, context: PipelineContext) -> PipelineContext:
+    def parse_arguments(self, context: FullPipelineContext) -> None:
         """Stage 3: Parse arguments to get actual values."""
         if not context.argument_parser:
             raise ValueError("No argument parser available")
@@ -139,18 +143,20 @@ class Pipeline:
             context.parsed_args = context.argument_parser.parse_args(context.rest_args)
         except SystemExit as exc:
             sys.exit(int(exc.code))
-        
-        return context
     
-    def run_compilation_stage(self, context: PipelineContext) -> PipelineContext:
+    def run_compilation_stage(self, context: FullPipelineContext) -> None:
         """Stage 4: Compile the script with variable assignments and transformations."""
-        return self.registry.execute_stage('compile', context)
+        stage_context = create_stage_context(context, 'compile')
+        self.registry.execute_stage('compile', stage_context)
+        update_full_context(context, stage_context)
     
-    def run_execution_stage(self, context: PipelineContext) -> PipelineContext:
+    def run_execution_stage(self, context: FullPipelineContext) -> None:
         """Stage 5: Execute the compiled script."""
-        return self.registry.execute_stage('execute', context)
+        stage_context = create_stage_context(context, 'execute')
+        self.registry.execute_stage('execute', stage_context)
+        update_full_context(context, stage_context)
     
-    def generate_output(self, context: PipelineContext) -> str:
+    def generate_output(self, context: FullPipelineContext) -> str:
         """Generate output based on the command type."""
         if context.command == "export":
             return generate_export_lines(context.variable_assignments)
@@ -174,16 +180,16 @@ class Pipeline:
             context = self.initialize_context(command)
             
             # Stage 1: Analyze script
-            context = self.run_analysis_stage(context)
+            self.run_analysis_stage(context)
             
             # Stage 2: Build argument parser
-            context = self.run_transform_stage(context)
+            self.run_transform_stage(context)
             
             # Stage 3: Parse arguments
-            context = self.parse_arguments(context)
+            self.parse_arguments(context)
             
             # Stage 4: Compile script
-            context = self.run_compilation_stage(context)
+            self.run_compilation_stage(context)
             
             # Generate output for export/compile commands
             if context.command in ["export", "compile"]:
@@ -197,7 +203,7 @@ class Pipeline:
                 return 0
             
             # Stage 5: Execute script (run command)
-            context = self.run_execution_stage(context)
+            self.run_execution_stage(context)
             return context.exit_code
             
         except FileNotFoundError as e:

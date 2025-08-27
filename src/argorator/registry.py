@@ -2,10 +2,10 @@
 from functools import wraps
 from typing import Callable, Dict, List, TypeVar
 
-from .context import PipelineContext
+from .contexts import BaseContext
 
-# Type for pipeline step functions
-PipelineStep = Callable[[PipelineContext], PipelineContext]
+# Type for pipeline step functions that mutate context in-place
+PipelineStep = Callable[[BaseContext], None]
 T = TypeVar('T', bound=PipelineStep)
 
 
@@ -43,23 +43,18 @@ class PipelineRegistry:
             return wrapper
         return decorator
     
-    def execute_stage(self, stage: str, context: PipelineContext) -> PipelineContext:
+    def execute_stage(self, stage: str, context: BaseContext) -> None:
         """Execute all registered steps for a given stage.
         
         Args:
             stage: The pipeline stage name
-            context: The pipeline context object
-            
-        Returns:
-            Updated context object
+            context: The stage-specific context object (mutated in-place)
         """
         if stage not in self._steps:
-            return context
+            return
         
         for order, step_func in self._steps[stage]:
-            context = step_func(context)
-        
-        return context
+            step_func(context)
     
     def get_stages(self) -> List[str]:
         """Get all registered stage names."""
