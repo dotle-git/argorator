@@ -38,7 +38,17 @@ class MacroProcessor:
                         print(f"Warning: Failed to parse macro on line {comment.line_number + 1}: {e}")
             elif comment.macro_type == 'safety':
                 try:
-                    safety_macro = self.parser.parse_safety_macro(comment)
+                    # Check if this is a trap macro that needs a target
+                    if comment.content.lower().startswith('trap cleanup'):
+                        target = self.parser.find_target_for_macro(script_text, comment.line_number)
+                        if not target:
+                            print(f"Warning: No target found for trap macro on line {comment.line_number + 1}")
+                            continue
+                        safety_macro = self.parser.parse_safety_macro(comment, target)
+                    else:
+                        # set strict and other safety macros don't need targets
+                        safety_macro = self.parser.parse_safety_macro(comment)
+                    
                     processed_macros.append(safety_macro)
                 except ValueError as e:
                     print(f"Warning: Failed to parse safety macro on line {comment.line_number + 1}: {e}")
@@ -53,35 +63,41 @@ class MacroProcessor:
         """Apply macro transformations to the script."""
         lines = script_text.split('\n')
         
-        # Separate safety and iteration macros
-        safety_macros = [m for m in macros if isinstance(m, SafetyMacro)]
+        # Separate different types of macros
         iteration_macros = [m for m in macros if isinstance(m, IterationMacro)]
+        global_safety_macros = [m for m in macros if isinstance(m, SafetyMacro) and not m.target]
+        targeted_safety_macros = [m for m in macros if isinstance(m, SafetyMacro) and m.target]
         
         # Process iteration macros in reverse order to maintain line numbers
         for macro in sorted(iteration_macros, key=lambda m: m.comment.line_number, reverse=True):
             transformation = macro.generate_transformation()
             lines = self._apply_single_transformation(lines, macro, transformation)
         
-        # Process safety macros in reverse order to maintain line numbers when removing comments
-        # But we'll track the insertions to place them in correct order at the top
-        safety_transformations = []
-        for macro in sorted(safety_macros, key=lambda m: m.comment.line_number):
+        # Process targeted safety macros (like trap cleanup) in reverse order to maintain line numbers
+        for macro in sorted(targeted_safety_macros, key=lambda m: m.comment.line_number, reverse=True):
             transformation = macro.generate_transformation()
-            safety_transformations.append(transformation)
+            lines = self._apply_single_transformation(lines, macro, transformation)
         
-        # Remove safety macro comments in reverse order to maintain line numbers
-        for macro in sorted(safety_macros, key=lambda m: m.comment.line_number, reverse=True):
+        # Process global safety macros (like set strict) - these go at the top
+        # Track the insertions to place them in correct order at the top
+        global_safety_transformations = []
+        for macro in sorted(global_safety_macros, key=lambda m: m.comment.line_number):
+            transformation = macro.generate_transformation()
+            global_safety_transformations.append(transformation)
+        
+        # Remove global safety macro comments in reverse order to maintain line numbers
+        for macro in sorted(global_safety_macros, key=lambda m: m.comment.line_number, reverse=True):
             del lines[macro.comment.line_number]
         
-        # Insert all safety transformations at the beginning
-        if safety_transformations:
+        # Insert all global safety transformations at the beginning
+        if global_safety_transformations:
             insertion_point = 0
             if lines and lines[0].startswith('#!'):
                 insertion_point = 1
             
-            # Combine all safety transformations
+            # Combine all global safety transformations
             all_safety_lines = []
-            for transformation in safety_transformations:
+            for transformation in global_safety_transformations:
                 all_safety_lines.extend(transformation.split('\n'))
                 all_safety_lines.append('')  # Add blank line between safety macros
             
@@ -95,10 +111,10 @@ class MacroProcessor:
         
         return '\n'.join(lines)
     
-    def _apply_single_transformation(self, lines: List[str], macro: IterationMacro, transformation: str) -> List[str]:
-        """Apply a single iteration macro transformation."""
+    def _apply_single_transformation(self, lines: List[str], macro: Union[IterationMacro, SafetyMacro], transformation: str) -> List[str]:
+        """Apply a single macro transformation (iteration or targeted safety macro)."""
         if macro.target.target_type == 'function':
-            # Insert loop after function definition
+            # Insert transformation after function definition
             insertion_point = macro.target.end_line + 1
             transformation_lines = [''] + transformation.split('\n')
             
@@ -107,7 +123,7 @@ class MacroProcessor:
                 lines.insert(insertion_point + i, line)
                 
         elif macro.target.target_type == 'line':
-            # Replace target line with loop
+            # Replace target line with transformation
             target_line = macro.target.start_line
             lines[target_line:target_line + 1] = transformation.split('\n')
         
@@ -368,8 +384,16 @@ class MacroProcessor:
                     errors.append(f"Line {comment.line_number + 1}: Unexpected error: {e}")
             elif comment.macro_type == 'safety':
                 try:
-                    # Try to parse the safety macro
-                    self.parser.parse_safety_macro(comment)
+                    # Check if this is a trap macro that needs a target
+                    if comment.content.lower().startswith('trap cleanup'):
+                        target = self.parser.find_target_for_macro(script_text, comment.line_number)
+                        if not target:
+                            errors.append(f"Line {comment.line_number + 1}: No target found for trap macro")
+                            continue
+                        self.parser.parse_safety_macro(comment, target)
+                    else:
+                        # set strict and other safety macros don't need targets
+                        self.parser.parse_safety_macro(comment)
                 except ValueError as e:
                     errors.append(f"❌ INVALID SAFETY MACRO (Line {comment.line_number + 1}): {e}")
                 except Exception as e:

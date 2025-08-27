@@ -381,24 +381,42 @@ class MacroParser:
         
         return True
     
-    def parse_safety_macro(self, comment: MacroComment) -> SafetyMacro:
+    def parse_safety_macro(self, comment: MacroComment, target: Optional[MacroTarget] = None) -> SafetyMacro:
         """Parse a safety macro comment into a structured object."""
-        content = comment.content.lower().strip()
+        content = comment.content.strip()
         
-        if content.startswith('set strict'):
+        if content.lower().startswith('set strict'):
             safety_type = 'set_strict'
-            # Could potentially extract additional options in the future
             options = []
-        elif content.startswith('trap cleanup'):
+            signals = []
+            # set strict doesn't need a target
+            
+        elif content.lower().startswith('trap cleanup'):
             safety_type = 'trap_cleanup'
-            # Could potentially extract cleanup function name or other options
             options = []
+            
+            # Parse signals if specified: "trap cleanup EXIT,ERR,INT"
+            signals = []
+            if len(content.split()) > 2:
+                # Extract everything after "trap cleanup"
+                signals_part = ' '.join(content.split()[2:])
+                # Split by comma and clean up
+                signals = [s.strip().upper() for s in signals_part.split(',') if s.strip()]
+            
+            # Validate signals
+            valid_signals = {'EXIT', 'ERR', 'INT', 'TERM', 'HUP', 'QUIT', 'USR1', 'USR2', 'PIPE', 'ALRM'}
+            invalid_signals = [s for s in signals if s not in valid_signals]
+            if invalid_signals:
+                raise ValueError(f"Invalid signal(s): {', '.join(invalid_signals)}. Valid signals: {', '.join(sorted(valid_signals))}")
+        
         else:
             raise ValueError(f"Unknown safety macro type: {content}")
         
         return SafetyMacro(
             comment=comment,
             safety_type=safety_type,
+            target=target,
+            signals=signals,
             options=options
         )
 

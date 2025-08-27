@@ -32,21 +32,13 @@ if [ "$VERBOSE" = "true" ]; then
     echo "Created temporary directory: $temp_dir"
 fi
 
-# Customize the cleanup function to handle our temporary files
-cleanup() {
-    local exit_code=$?
-    echo "🧹 Cleaning up..." >&2
-    
-    if [ "$VERBOSE" = "true" ]; then
-        echo "Removing temporary directory: $temp_dir" >&2
-    fi
-    
-    # Remove temporary directory
-    rm -rf "$temp_dir"
-    
-    echo "✨ Cleanup completed" >&2
-    exit $exit_code
-}
+# The trap cleanup macro will automatically handle our temporary files
+# trap cleanup
+rm -rf "$temp_dir"
+if [ "$VERBOSE" = "true" ]; then
+    echo "🧹 Cleaned up temporary directory: $temp_dir" >&2
+fi
+echo "✨ Cleanup completed" >&2
 
 # Process the input file
 echo "📊 Processing file..."

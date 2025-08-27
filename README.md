@@ -238,30 +238,46 @@ echo "Processing $FILE"
 
 ### Cleanup Traps
 
-Add automatic cleanup on script exit:
+Add automatic cleanup that runs specific code on script exit:
 
 ```bash
 #!/usr/bin/env argorator
 
 # trap cleanup
+rm -f /tmp/tempfile
+echo "Temp files cleaned up"
 
 echo "Starting processing..."
-echo "This script will cleanup automatically on exit/error"
+tempfile=$(mktemp)
+echo "Created: $tempfile"
 ```
 
 Generated cleanup handler:
 ```bash
-set -eou --pipefail
-
-# Cleanup trap handler
-cleanup() {
+# Trap cleanup handler
+_cleanup_line_2() {
     local exit_code=$?
-    echo "Cleaning up..." >&2
-    # Add your cleanup code here
+    rm -f /tmp/tempfile
+    echo "Temp files cleaned up"
     exit $exit_code
 }
 
-trap cleanup EXIT ERR INT TERM
+trap _cleanup_line_2 EXIT ERR INT TERM
+
+echo "Starting processing..."
+tempfile=$(mktemp)
+echo "Created: $tempfile"
+```
+
+#### Custom Signals
+
+Specify which signals to trap:
+
+```bash
+#!/usr/bin/env argorator
+
+# trap cleanup EXIT,INT
+echo "Cleanup on exit or interrupt only"
 ```
 
 ### Use Both Together
@@ -271,8 +287,12 @@ trap cleanup EXIT ERR INT TERM
 
 # set strict
 # trap cleanup
+rm -rf "$TEMP_DIR"
+echo "Cleaned up temporary directory"
 
 echo "Ultra-safe script processing $INPUT_FILE"
+TEMP_DIR=$(mktemp -d)
+echo "Working in: $TEMP_DIR"
 ```
 
 Safety macros provide:

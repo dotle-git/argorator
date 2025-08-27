@@ -2,7 +2,7 @@
 import pytest
 from argorator.macros.processor import macro_processor
 from argorator.macros.parser import macro_parser
-from argorator.macros.models import SafetyMacro, MacroComment
+from argorator.macros.models import SafetyMacro, MacroComment, MacroTarget
 
 
 class TestSafetyMacroParser:
@@ -56,7 +56,7 @@ echo "Hello World"'''
         assert safety_macro.options == []
     
     def test_parse_trap_cleanup_macro(self):
-        """Test parsing of trap cleanup macro."""
+        """Test parsing of trap cleanup macro with target."""
         comment = MacroComment(
             line_number=1,
             content="trap cleanup",
@@ -64,10 +64,86 @@ echo "Hello World"'''
             raw_line="# trap cleanup"
         )
         
-        safety_macro = macro_parser.parse_safety_macro(comment)
+        target = MacroTarget(
+            target_type="line",
+            start_line=2,
+            end_line=2,
+            content='echo "Cleaning up..."',
+            metadata={}
+        )
+        
+        safety_macro = macro_parser.parse_safety_macro(comment, target)
         assert isinstance(safety_macro, SafetyMacro)
         assert safety_macro.safety_type == "trap_cleanup"
+        assert safety_macro.target == target
+        assert safety_macro.signals == []  # Default signals
         assert safety_macro.options == []
+    
+    def test_parse_trap_cleanup_with_custom_signals(self):
+        """Test parsing trap cleanup macro with custom signals."""
+        comment = MacroComment(
+            line_number=1,
+            content="trap cleanup EXIT,ERR,INT",
+            macro_type="safety",
+            raw_line="# trap cleanup EXIT,ERR,INT"
+        )
+        
+        target = MacroTarget(
+            target_type="line",
+            start_line=2,
+            end_line=2,
+            content='echo "Cleaning up..."',
+            metadata={}
+        )
+        
+        safety_macro = macro_parser.parse_safety_macro(comment, target)
+        assert safety_macro.safety_type == "trap_cleanup"
+        assert safety_macro.signals == ["EXIT", "ERR", "INT"]
+    
+    def test_parse_trap_cleanup_function_target(self):
+        """Test parsing trap cleanup macro with function target."""
+        comment = MacroComment(
+            line_number=1,
+            content="trap cleanup",
+            macro_type="safety",
+            raw_line="# trap cleanup"
+        )
+        
+        target = MacroTarget(
+            target_type="function",
+            start_line=2,
+            end_line=5,
+            content='''cleanup_files() {
+    rm -f /tmp/tempfile
+    echo "Cleanup complete"
+}''',
+            metadata={"function_name": "cleanup_files"}
+        )
+        
+        safety_macro = macro_parser.parse_safety_macro(comment, target)
+        assert safety_macro.safety_type == "trap_cleanup"
+        assert safety_macro.target.target_type == "function"
+        assert safety_macro.target.metadata["function_name"] == "cleanup_files"
+    
+    def test_invalid_signals(self):
+        """Test error handling for invalid signals."""
+        comment = MacroComment(
+            line_number=1,
+            content="trap cleanup INVALID,SIGNAL",
+            macro_type="safety",
+            raw_line="# trap cleanup INVALID,SIGNAL"
+        )
+        
+        target = MacroTarget(
+            target_type="line",
+            start_line=2,
+            end_line=2,
+            content='echo "cleanup"',
+            metadata={}
+        )
+        
+        with pytest.raises(ValueError, match="Invalid signal"):
+            macro_parser.parse_safety_macro(comment, target)
     
     def test_invalid_safety_macro(self):
         """Test error handling for invalid safety macro."""
@@ -98,8 +174,8 @@ class TestSafetyMacroTransformations:
         transformation = safety_macro.generate_transformation()
         assert transformation == "set -eou --pipefail"
     
-    def test_trap_cleanup_transformation(self):
-        """Test trap cleanup macro generates correct bash code."""
+    def test_trap_cleanup_line_transformation(self):
+        """Test trap cleanup macro generates correct bash code for line target."""
         comment = MacroComment(
             line_number=1,
             content="trap cleanup",
@@ -107,18 +183,91 @@ class TestSafetyMacroTransformations:
             raw_line="# trap cleanup"
         )
         
-        safety_macro = macro_parser.parse_safety_macro(comment)
+        target = MacroTarget(
+            target_type="line",
+            start_line=2,
+            end_line=2,
+            content='echo "Cleaning up temp files"',
+            metadata={}
+        )
+        
+        safety_macro = macro_parser.parse_safety_macro(comment, target)
         transformation = safety_macro.generate_transformation()
         
-        expected = '''# Cleanup trap handler
-cleanup() {
+        expected = '''# Trap cleanup handler
+_cleanup_line_2() {
     local exit_code=$?
-    echo "Cleaning up..." >&2
-    # Add your cleanup code here
+    echo "Cleaning up temp files"
     exit $exit_code
 }
 
-trap cleanup EXIT ERR INT TERM'''
+trap _cleanup_line_2 EXIT ERR INT TERM'''
+        
+        assert transformation == expected
+    
+    def test_trap_cleanup_function_transformation(self):
+        """Test trap cleanup macro generates correct bash code for function target."""
+        comment = MacroComment(
+            line_number=1,
+            content="trap cleanup",
+            macro_type="safety",
+            raw_line="# trap cleanup"
+        )
+        
+        target = MacroTarget(
+            target_type="function",
+            start_line=2,
+            end_line=5,
+            content='''cleanup_files() {
+    rm -f /tmp/tempfile
+    echo "Cleanup complete"
+}''',
+            metadata={"function_name": "cleanup_files"}
+        )
+        
+        safety_macro = macro_parser.parse_safety_macro(comment, target)
+        transformation = safety_macro.generate_transformation()
+        
+        expected = '''# Trap cleanup from function cleanup_files
+_cleanup_cleanup_files() {
+    local exit_code=$?
+    rm -f /tmp/tempfile
+    echo "Cleanup complete"
+    exit $exit_code
+}
+
+trap _cleanup_cleanup_files EXIT ERR INT TERM'''
+        
+        assert transformation == expected
+    
+    def test_trap_cleanup_custom_signals_transformation(self):
+        """Test trap cleanup macro with custom signals."""
+        comment = MacroComment(
+            line_number=1,
+            content="trap cleanup EXIT,INT",
+            macro_type="safety",
+            raw_line="# trap cleanup EXIT,INT"
+        )
+        
+        target = MacroTarget(
+            target_type="line",
+            start_line=2,
+            end_line=2,
+            content='echo "Custom cleanup"',
+            metadata={}
+        )
+        
+        safety_macro = macro_parser.parse_safety_macro(comment, target)
+        transformation = safety_macro.generate_transformation()
+        
+        expected = '''# Trap cleanup handler
+_cleanup_line_2() {
+    local exit_code=$?
+    echo "Custom cleanup"
+    exit $exit_code
+}
+
+trap _cleanup_line_2 EXIT INT'''
         
         assert transformation == expected
 
@@ -141,19 +290,21 @@ echo "Hello $NAME!"'''
         assert lines[2] == ""
         assert lines[3] == 'echo "Hello $NAME!"'
     
-    def test_process_trap_cleanup_macro(self):
-        """Test processing of trap cleanup macro."""
+    def test_process_trap_cleanup_macro_with_line(self):
+        """Test processing of trap cleanup macro with line target."""
         script = '''#!/bin/bash
 # trap cleanup
+echo "Cleaning up temp files"
 echo "Hello $NAME!"'''
         
         result = macro_processor.process_macros(script)
         lines = result.split('\n')
         
-        # Should have shebang, trap setup, blank line, then echo
+        # Should have shebang, then echo, then trap setup replaces the cleanup line
         assert lines[0] == "#!/bin/bash"
-        assert "cleanup()" in result
-        assert "trap cleanup EXIT ERR INT TERM" in result
+        assert "_cleanup_line_2(" in result
+        assert "trap _cleanup_line_2 EXIT ERR INT TERM" in result
+        assert 'echo "Cleaning up temp files"' in result  # Should be in the trap function
         assert 'echo "Hello $NAME!"' in result
     
     def test_process_both_safety_macros(self):
@@ -161,6 +312,7 @@ echo "Hello $NAME!"'''
         script = '''#!/bin/bash
 # set strict
 # trap cleanup
+rm -f /tmp/tempfile
 echo "Hello $NAME!"'''
         
         result = macro_processor.process_macros(script)
@@ -168,8 +320,9 @@ echo "Hello $NAME!"'''
         
         # Should have both macros processed
         assert "set -eou --pipefail" in result
-        assert "cleanup()" in result
-        assert "trap cleanup EXIT ERR INT TERM" in result
+        assert "_cleanup_line_3(" in result
+        assert "trap _cleanup_line_3 EXIT ERR INT TERM" in result
+        assert 'rm -f /tmp/tempfile' in result  # Should be in the trap function
         assert 'echo "Hello $NAME!"' in result
         # Should start with shebang
         assert lines[0] == "#!/bin/bash"
@@ -204,27 +357,22 @@ echo "Processing $file"'''
     def test_multiple_safety_macros_order(self):
         """Test that multiple safety macros are processed in correct order."""
         script = '''#!/bin/bash
-# trap cleanup
-echo "Some code"
 # set strict
+echo "Some code"
+# trap cleanup
+rm -f /tmp/cleanup_file
 echo "More code"'''
         
         result = macro_processor.process_macros(script)
         lines = result.split('\n')
         
-        # Safety macros should be processed in order they appear
-        # First trap, then set strict
-        trap_line = None
-        set_line = None
-        for i, line in enumerate(lines):
-            if "cleanup()" in line:
-                trap_line = i
-            elif "set -eou --pipefail" in line:
-                set_line = i
-        
-        assert trap_line is not None
-        assert set_line is not None
-        assert trap_line < set_line
+        # set strict should be at the top, trap should replace its target
+        assert "set -eou --pipefail" in result
+        assert "_cleanup_line_4(" in result
+        assert "trap _cleanup_line_4 EXIT ERR INT TERM" in result
+        assert 'rm -f /tmp/cleanup_file' in result
+        assert 'echo "Some code"' in result
+        assert 'echo "More code"' in result
 
 
 class TestSafetyMacroValidation:
@@ -235,6 +383,7 @@ class TestSafetyMacroValidation:
         script = '''#!/bin/bash
 # set strict
 # trap cleanup
+echo "Cleanup action"
 echo "Hello World"'''
         
         errors = macro_processor.validate_macros(script)
@@ -249,4 +398,14 @@ echo "Hello World"'''
         errors = macro_processor.validate_macros(script)
         assert len(errors) == 1
         assert "INVALID SAFETY MACRO" in errors[0]
+        assert "Line 2" in errors[0]
+    
+    def test_validate_trap_cleanup_without_target(self):
+        """Test validation catches trap cleanup without target."""
+        script = '''#!/bin/bash
+# trap cleanup'''
+        
+        errors = macro_processor.validate_macros(script)
+        assert len(errors) == 1
+        assert "No target found for trap macro" in errors[0]
         assert "Line 2" in errors[0]

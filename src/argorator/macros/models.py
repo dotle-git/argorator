@@ -220,6 +220,8 @@ class SafetyMacro(BaseModel):
     """Represents a bash safety/configuration macro."""
     comment: MacroComment
     safety_type: str  # 'set_strict', 'trap_cleanup', etc.
+    target: Optional[MacroTarget] = None  # Target for trap macros
+    signals: List[str] = []  # Custom signals for trap macros
     options: List[str] = []  # Additional options/parameters
     
     def generate_transformation(self) -> str:
@@ -238,13 +240,68 @@ class SafetyMacro(BaseModel):
     
     def _generate_trap_cleanup(self) -> str:
         """Generate trap cleanup handler."""
-        # Basic trap that calls cleanup function on EXIT, ERR, INT, TERM
-        return '''# Cleanup trap handler
-cleanup() {
+        if not self.target:
+            raise ValueError("Trap macro requires a target")
+        
+        # Use custom signals or default ones
+        signals = self.signals if self.signals else ['EXIT', 'ERR', 'INT', 'TERM']
+        signals_str = ' '.join(signals)
+        
+        if self.target.target_type == 'function':
+            # For functions, use the function body as cleanup code
+            func_name = self.target.metadata['function_name']
+            cleanup_func_name = f"_cleanup_{func_name}"
+            
+            # Extract the function body (everything between { and })
+            full_definition = self.target.content
+            lines = full_definition.split('\n')
+            
+            # Find the opening brace and extract body
+            body_lines = []
+            in_body = False
+            brace_count = 0
+            
+            for line in lines:
+                if '{' in line and not in_body:
+                    in_body = True
+                    # Count braces to handle nested structures
+                    brace_count += line.count('{') - line.count('}')
+                    # Add any content after the opening brace
+                    after_brace = line.split('{', 1)[1] if '{' in line else line
+                    if after_brace.strip():
+                        body_lines.append(after_brace)
+                elif in_body:
+                    brace_count += line.count('{') - line.count('}')
+                    if brace_count <= 0:
+                        # This is the closing brace line
+                        before_brace = line.split('}', 1)[0] if '}' in line else line
+                        if before_brace.strip():
+                            body_lines.append(before_brace)
+                        break
+                    else:
+                        body_lines.append(line)
+            
+            # Join the body lines
+            function_body = '\n'.join(body_lines).strip()
+            
+            return f'''# Trap cleanup from function {func_name}
+{cleanup_func_name}() {{
     local exit_code=$?
-    echo "Cleaning up..." >&2
-    # Add your cleanup code here
+    {function_body}
     exit $exit_code
-}
+}}
 
-trap cleanup EXIT ERR INT TERM'''
+trap {cleanup_func_name} {signals_str}'''
+        else:
+            # For lines, wrap the content in a cleanup function
+            target_content = self.target.content.strip()
+            cleanup_func_name = f"_cleanup_line_{self.target.start_line}"
+            
+            return f'''# Trap cleanup handler
+{cleanup_func_name}() {{
+    local exit_code=$?
+    {target_content}
+    exit $exit_code
+}}
+
+trap {cleanup_func_name} {signals_str}'''
