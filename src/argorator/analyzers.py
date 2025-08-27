@@ -101,10 +101,45 @@ def analyze_defined_variables(context: AnalysisContext) -> None:
     context.defined_vars = parse_defined_variables(context.script_text)
 
 
+@analyzer(order=21.5)
+def identify_macro_iterator_variables(context: AnalysisContext) -> None:
+    """Identify iterator variables from iteration macros to exclude from undefined variables."""
+    try:
+        from .macros.parser import macro_parser
+        
+        # Find all iteration macro comments
+        macro_comments = macro_parser.find_macro_comments(context.script_text)
+        iterator_vars = set()
+        
+        for comment in macro_comments:
+            if comment.macro_type == 'iteration':
+                try:
+                    # Parse the iteration macro to extract iterator variable
+                    # We need a dummy target to parse the macro
+                    target = macro_parser.find_target_for_macro(context.script_text, comment.line_number)
+                    if target:
+                        iteration_macro = macro_parser.parse_iteration_macro(comment, target)
+                        iterator_vars.add(iteration_macro.iterator_var)
+                except Exception:
+                    # If parsing fails, continue with other macros
+                    pass
+        
+        # Store iterator variables in temp_data for use in next analyzer
+        context.temp_data['macro_iterator_vars'] = iterator_vars
+        
+    except ImportError:
+        # If macro modules aren't available, skip this step
+        context.temp_data['macro_iterator_vars'] = set()
+
+
 @analyzer(order=22)
 def analyze_undefined_variables(context: AnalysisContext) -> None:
     """Identify variables that are used but not defined in the script."""
-    undefined_vars = context.all_used_vars - context.defined_vars
+    # Get iterator variables identified by macro analysis
+    macro_iterator_vars = context.temp_data.get('macro_iterator_vars', set())
+    
+    # Exclude iterator variables from undefined variables
+    undefined_vars = context.all_used_vars - context.defined_vars - macro_iterator_vars
     context.undefined_vars = {name: None for name in sorted(undefined_vars)}
 
 
