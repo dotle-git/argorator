@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- **INTERNAL**: Refactored codebase to use clear pipeline architecture
+  - Created `analyzers.py` module with dedicated script analysis classes
+  - Created `transformers.py` module for argparse parser building
+  - Created `compilation.py` module for script transformation steps  
+  - Created `execution.py` module for script execution and file handling
+  - Created `pipeline.py` module as main orchestrator coordinating all stages
+  - Refactored `cli.py` to use the new pipeline architecture while maintaining backward compatibility
+  - Pipeline stages: 1) Script analysis, 2) Parser transformation, 3) Argument parsing, 4) Script compilation, 5) Script execution
 
 ### Fixed
 

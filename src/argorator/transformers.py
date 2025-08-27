@@ -1,0 +1,254 @@
+"""Transformers for updating argparse parsers based on script analysis.
+
+This module contains transformers that take script analysis results and 
+build appropriate argparse parsers.
+"""
+import argparse
+from typing import Dict, List, Optional, Sequence, Set
+
+from .analyzers import ScriptAnalysisResult
+from .models import ArgumentAnnotation
+
+
+class ArgumentParserTransformer:
+    """Transforms script analysis results into argparse parsers."""
+    
+    @staticmethod
+    def build_dynamic_arg_parser(
+        analysis_result: ScriptAnalysisResult,
+        script_name: Optional[str] = None
+    ) -> argparse.ArgumentParser:
+        """Construct an argparse parser for script-specific variables and positionals.
+
+        - Undefined variables become required options: --var (lowercase)
+        - Env-backed variables become optional with defaults from the environment
+        - Numeric positional references ($1, $2, ...) become positionals ARG1, ARG2, ...
+        - Varargs ($@ or $*) collects remaining args via an ARGS positional with nargs='*'
+        - Annotations from comments provide type information and help text
+        """
+        undefined_vars = sorted(analysis_result.undefined_vars.keys())
+        env_vars = analysis_result.env_vars
+        positional_indices = analysis_result.positional_indices
+        varargs = analysis_result.varargs
+        annotations = analysis_result.annotations
+        
+        # Detect conflicts between environment defaults and annotation defaults
+        conflicts = []
+        for name in env_vars.keys():
+            annotation = annotations.get(name)
+            if annotation and annotation.default is not None:
+                env_value = env_vars[name]
+                annotation_default = annotation.default
+                if str(env_value) != str(annotation_default):
+                    conflicts.append((name, env_value, annotation_default))
+        
+        # Create custom ArgumentParser to add conflict warnings to help
+        class ConflictAwareArgumentParser(argparse.ArgumentParser):
+            def format_help(self):
+                help_text = super().format_help()
+                if conflicts:
+                    warning_lines = ["\nWARNING: Default value conflicts detected:"]
+                    for var_name, env_val, ann_val in conflicts:
+                        warning_lines.append(f"  {var_name}: environment='{env_val}' vs annotation='{ann_val}' (using environment)")
+                    warning_lines.append("")
+                    help_text = help_text + "\n".join(warning_lines)
+                return help_text
+        
+        parser = ConflictAwareArgumentParser(add_help=True, prog=script_name)
+        
+        # Helper function to get type converter
+        def get_type_converter(type_str: str):
+            if type_str == 'int':
+                return int
+            elif type_str == 'float':
+                return float
+            else:  # str, string or choice
+                return str
+        
+        # Options for undefined variables
+        for name in undefined_vars:
+            ArgumentParserTransformer._add_variable_argument(
+                parser, name, annotations.get(name, ArgumentAnnotation()), 
+                required=True, env_value=None, conflicts=conflicts,
+                get_type_converter=get_type_converter
+            )
+            
+        # Options for environment variables
+        for name, value in env_vars.items():
+            ArgumentParserTransformer._add_variable_argument(
+                parser, name, annotations.get(name, ArgumentAnnotation()), 
+                required=False, env_value=value, conflicts=conflicts,
+                get_type_converter=get_type_converter
+            )
+            
+        # Positional arguments
+        for index in sorted(positional_indices):
+            parser.add_argument(f"ARG{index}")
+        if varargs:
+            parser.add_argument("ARGS", nargs="*")
+            
+        return parser
+    
+    @staticmethod
+    def _add_variable_argument(
+        parser: argparse.ArgumentParser,
+        name: str,
+        annotation: ArgumentAnnotation,
+        required: bool,
+        env_value: Optional[str],
+        conflicts: List,
+        get_type_converter
+    ):
+        """Add a variable argument to the parser."""
+        # Build argument names
+        arg_names = [f"--{name.lower()}"]
+        if annotation.alias:
+            arg_names.insert(0, annotation.alias)  # Put alias first
+        
+        kwargs = {
+            'dest': name,
+        }
+        
+        # Handle boolean type specially
+        if annotation.type == 'bool':
+            ArgumentParserTransformer._add_boolean_argument(
+                parser, arg_names, kwargs, annotation, required, env_value, name, conflicts
+            )
+        else:
+            ArgumentParserTransformer._add_typed_argument(
+                parser, arg_names, kwargs, annotation, required, env_value, name, conflicts, get_type_converter
+            )
+    
+    @staticmethod
+    def _add_boolean_argument(
+        parser: argparse.ArgumentParser,
+        arg_names: List[str],
+        kwargs: Dict,
+        annotation: ArgumentAnnotation,
+        required: bool,
+        env_value: Optional[str],
+        name: str,
+        conflicts: List
+    ):
+        """Add a boolean argument to the parser."""
+        if env_value is not None:
+            # Environment-backed boolean
+            default_bool = env_value.lower() in ('true', '1', 'yes', 'y')
+        elif annotation.default is not None:
+            # Annotation-backed boolean
+            default_bool = annotation.default.lower() in ('true', '1', 'yes', 'y')
+        else:
+            # Required boolean defaults to False
+            default_bool = False
+        
+        if default_bool:
+            # Default is True, so flag should store_false
+            kwargs['action'] = 'store_false'
+            kwargs['default'] = True
+            help_parts = []
+            if annotation.help:
+                help_parts.append(annotation.help)
+            if env_value is not None:
+                if name in [c[0] for c in conflicts]:
+                    help_parts.append("(default from env: true, overriding annotation)")
+                else:
+                    help_parts.append(f"(default from env: {env_value})")
+            else:
+                help_parts.append("(default: true)")
+            kwargs['help'] = ' '.join(help_parts)
+        else:
+            # Default is False, so flag should store_true
+            kwargs['action'] = 'store_true'
+            kwargs['default'] = False
+            help_parts = []
+            if annotation.help:
+                help_parts.append(annotation.help)
+            if env_value is not None:
+                if name in [c[0] for c in conflicts]:
+                    help_parts.append("(default from env: false, overriding annotation)")
+                else:
+                    help_parts.append(f"(default from env: {env_value})")
+            else:
+                help_parts.append("(default: false)")
+            kwargs['help'] = ' '.join(help_parts)
+        
+        # Boolean flags are never required (they have implicit defaults)
+        kwargs['required'] = False
+        parser.add_argument(*arg_names, **kwargs)
+    
+    @staticmethod
+    def _add_typed_argument(
+        parser: argparse.ArgumentParser,
+        arg_names: List[str],
+        kwargs: Dict,
+        annotation: ArgumentAnnotation,
+        required: bool,
+        env_value: Optional[str],
+        name: str,
+        conflicts: List,
+        get_type_converter
+    ):
+        """Add a typed (non-boolean) argument to the parser."""
+        kwargs['type'] = get_type_converter(annotation.type)
+        
+        if env_value is not None:
+            # Environment-backed variable
+            kwargs['default'] = get_type_converter(annotation.type)(env_value)
+            kwargs['required'] = False
+            
+            # Build help text with default value info
+            help_parts = []
+            if annotation.help:
+                help_parts.append(annotation.help)
+            if name in [c[0] for c in conflicts]:
+                help_parts.append(f"(default from env: {env_value}, overriding annotation)")
+            else:
+                help_parts.append(f"(default from env: {env_value})")
+            kwargs['help'] = ' '.join(help_parts)
+        elif annotation.default is not None:
+            # Annotation provides default
+            kwargs['default'] = get_type_converter(annotation.type)(annotation.default)
+            kwargs['required'] = False
+            if annotation.help:
+                kwargs['help'] = f"{annotation.help} (default: {annotation.default})"
+            else:
+                kwargs['help'] = f"(default: {annotation.default})"
+        else:
+            # Required variable
+            kwargs['required'] = required
+            if annotation.help:
+                kwargs['help'] = annotation.help
+        
+        if annotation.choices:
+            kwargs['choices'] = annotation.choices
+        
+        parser.add_argument(*arg_names, **kwargs)
+
+
+class TopLevelParserTransformer:
+    """Transforms for the top-level argparse parser with subcommands."""
+    
+    @staticmethod
+    def build_top_level_parser() -> argparse.ArgumentParser:
+        """Build the top-level argparse parser with run/compile/export subcommands."""
+        parser = argparse.ArgumentParser(
+            prog="argorator", 
+            description="Execute or compile shell scripts with CLI-exposed variables"
+        )
+        subparsers = parser.add_subparsers(dest="subcmd")
+        
+        # run
+        run_parser = subparsers.add_parser("run", help="Run script (default)")
+        run_parser.add_argument("script", help="Path to the shell script")
+        run_parser.add_argument("--echo", action="store_true", help="Print commands that would run (no execution)")
+        
+        # compile
+        compile_parser = subparsers.add_parser("compile", help="Print modified script")
+        compile_parser.add_argument("script", help="Path to the shell script")
+        compile_parser.add_argument("--echo", action="store_true", help="Print echo-transformed script (dry run view)")
+        
+        # export
+        export_parser = subparsers.add_parser("export", help="Print export lines")
+        export_parser.add_argument("script", help="Path to the shell script")
+        
+        return parser
