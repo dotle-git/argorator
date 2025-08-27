@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Set argument parser program name to script filename without extension for better help display
-- Support for `# Description: ...` annotation to add script description to help output
+- Support for `# Description: ...` annotation to add script description to help output (using parsy for consistent parsing)
 
 ### Changed
 
