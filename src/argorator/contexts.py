@@ -1,63 +1,43 @@
-"""Stage-specific context models for the pipeline.
+"""Stage-specific context models for the pipeline architecture.
 
-Each stage has its own context model that exposes only the data and operations
-appropriate for that stage, ensuring proper encapsulation and preventing
-unauthorized access to pipeline data.
+Each context contains only the fields needed for its specific stage,
+enforcing separation of concerns and type safety.
 """
 import argparse
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Any
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from .models import ArgumentAnnotation
 
 
-class BaseContext(BaseModel):
-    """Base context with common fields available to all stages."""
-    
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-        validate_assignment=True,
-        extra='forbid'
-    )
-    
-    # Command line parsing (read-only for most stages)
-    command: str = Field(default="", description="The command to execute (run/compile/export)")
+class AnalysisContext(BaseModel):
+    """Context for the analysis stage - script analysis only."""
+    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True, extra='forbid')
+
+    # INPUTS: What analysis needs
+    script_text: str = Field(description="Content of the script file")
     script_path: Optional[Path] = Field(default=None, description="Path to the script file")
-    echo_mode: bool = Field(default=False, description="Whether to run in echo mode")
-    rest_args: List[str] = Field(default_factory=list, description="Remaining command line arguments")
-    
-    # Script content (read-only after initialization)
-    script_text: str = Field(default="", description="Content of the script file")
-    
-    # Temporary data for pipeline steps
-    temp_data: Dict[str, Any] = Field(default_factory=dict, description="Temporary data for pipeline steps")
-    
-    def get_script_name(self) -> Optional[str]:
-        """Get the script name for display purposes."""
-        return self.script_path.name if self.script_path else None
+    command: str = Field(default="", description="The command to execute (run/compile/export)")
 
-
-class AnalysisContext(BaseContext):
-    """Context for the analysis stage - can read script and write analysis results."""
-    
-    # Analysis results - writable during analysis stage
+    # OUTPUTS: What analysis produces
     shell_cmd: List[str] = Field(default_factory=list, description="Shell command for execution")
-    
-    # Variable analysis intermediate results
     all_used_vars: Set[str] = Field(default_factory=set, description="All variables referenced in script")
     defined_vars: Set[str] = Field(default_factory=set, description="Variables defined within script")
     undefined_vars: Dict[str, Optional[str]] = Field(default_factory=dict, description="Variables not defined in script")
     env_vars: Dict[str, str] = Field(default_factory=dict, description="Variables with environment defaults")
-    
-    # Positional parameter analysis
     positional_indices: Set[int] = Field(default_factory=set, description="Positional parameter indices used")
     varargs: bool = Field(default=False, description="Whether script uses varargs ($@ or $*)")
-    
-    # Annotation analysis
     annotations: Dict[str, ArgumentAnnotation] = Field(default_factory=dict, description="Parsed annotations")
-    
+
+    # Temporary data for pipeline steps
+    temp_data: Dict[str, Any] = Field(default_factory=dict, description="Temporary data for pipeline steps")
+
+    def get_script_name(self) -> Optional[str]:
+        """Get the script name for display purposes."""
+        return self.script_path.name if self.script_path else None
+
     @field_validator('positional_indices')
     @classmethod
     def validate_positional_indices(cls, v: Set[int]) -> Set[int]:
@@ -67,72 +47,77 @@ class AnalysisContext(BaseContext):
         return v
 
 
-class TransformContext(BaseContext):
-    """Context for the transform stage - can read analysis results and create/modify parser."""
-    
-    # Analysis results - read-only during transform stage
-    shell_cmd: List[str] = Field(default_factory=list, description="Shell command for execution")
-    all_used_vars: Set[str] = Field(default_factory=set, description="All variables referenced in script")
-    defined_vars: Set[str] = Field(default_factory=set, description="Variables defined within script")
+class TransformContext(BaseModel):
+    """Context for the transform stage - parser building only."""
+    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True, extra='forbid')
+
+    # INPUTS: Analysis results needed for parser building
     undefined_vars: Dict[str, Optional[str]] = Field(default_factory=dict, description="Variables not defined in script")
     env_vars: Dict[str, str] = Field(default_factory=dict, description="Variables with environment defaults")
     positional_indices: Set[int] = Field(default_factory=set, description="Positional parameter indices used")
     varargs: bool = Field(default=False, description="Whether script uses varargs ($@ or $*)")
     annotations: Dict[str, ArgumentAnnotation] = Field(default_factory=dict, description="Parsed annotations")
-    
-    # Parser - writable during transform stage
+    script_path: Optional[Path] = Field(default=None, description="Path to the script file")  # For parser name
+
+    # OUTPUTS: What transform produces
     argument_parser: Optional[argparse.ArgumentParser] = Field(default=None, description="Built argument parser")
 
+    # Temporary data for pipeline steps
+    temp_data: Dict[str, Any] = Field(default_factory=dict, description="Temporary data for pipeline steps")
 
-class ValidateContext(BaseContext):
-    """Context for the validate stage - can read parser/args and write validated/transformed args."""
-    
-    # Analysis results - read-only during validate stage
-    undefined_vars: Dict[str, Optional[str]] = Field(default_factory=dict, description="Variables not defined in script")
-    env_vars: Dict[str, str] = Field(default_factory=dict, description="Variables with environment defaults")
+    def get_script_name(self) -> Optional[str]:
+        """Get the script name for display purposes."""
+        return self.script_path.name if self.script_path else None
+
+
+class ValidateContext(BaseModel):
+    """Context for the validate stage - argument validation and transformation only."""
+    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True, extra='forbid')
+
+    # INPUTS: Parser and parsed args for validation
+    argument_parser: Optional[argparse.ArgumentParser] = Field(default=None, description="Built argument parser")
+    parsed_args: Optional[argparse.Namespace] = Field(default=None, description="Parsed command line arguments")
+
+    # OUTPUTS: None (validation modifies parsed_args in place)
+    # Temporary data for pipeline steps
+    temp_data: Dict[str, Any] = Field(default_factory=dict, description="Temporary data for pipeline steps")
+
+
+class CompileContext(BaseModel):
+    """Context for the compile stage - script compilation only."""
+    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True, extra='forbid')
+
+    # INPUTS: Script and arguments needed for compilation
+    script_text: str = Field(description="Content of the script file")
+    parsed_args: Optional[argparse.Namespace] = Field(default=None, description="Parsed command line arguments")
+    echo_mode: bool = Field(default=False, description="Whether to run in echo mode")
     positional_indices: Set[int] = Field(default_factory=set, description="Positional parameter indices used")
     varargs: bool = Field(default=False, description="Whether script uses varargs ($@ or $*)")
-    annotations: Dict[str, ArgumentAnnotation] = Field(default_factory=dict, description="Parsed annotations")
-    
-    # Parser and parsed arguments - readable and writable during validate stage
-    argument_parser: Optional[argparse.ArgumentParser] = Field(default=None, description="Built argument parser")
-    parsed_args: Optional[argparse.Namespace] = Field(default=None, description="Parsed command line arguments (can be modified)")
 
-
-class CompileContext(BaseContext):
-    """Context for the compile stage - can read validated args and write compilation results."""
-    
-    # Analysis results - read-only during compile stage
-    shell_cmd: List[str] = Field(default_factory=list, description="Shell command for execution")
-    undefined_vars: Dict[str, Optional[str]] = Field(default_factory=dict, description="Variables not defined in script")
-    env_vars: Dict[str, str] = Field(default_factory=dict, description="Variables with environment defaults")
-    positional_indices: Set[int] = Field(default_factory=set, description="Positional parameter indices used")
-    varargs: bool = Field(default=False, description="Whether script uses varargs ($@ or $*)")
-    
-    # Parser and validated arguments - read-only during compile stage
-    argument_parser: Optional[argparse.ArgumentParser] = Field(default=None, description="Built argument parser")
-    parsed_args: Optional[argparse.Namespace] = Field(default=None, description="Validated and transformed arguments")
-    
-    # Compilation results - writable during compile stage
+    # OUTPUTS: What compile produces
+    compiled_script: str = Field(default="", description="Compiled script with injected variables")
     variable_assignments: Dict[str, str] = Field(default_factory=dict, description="Resolved variable assignments")
     positional_values: List[str] = Field(default_factory=list, description="Positional argument values")
-    compiled_script: str = Field(default="", description="Compiled script with injected variables")
+
+    # Temporary data for pipeline steps
+    temp_data: Dict[str, Any] = Field(default_factory=dict, description="Temporary data for pipeline steps")
 
 
-class ExecuteContext(BaseContext):
-    """Context for the execute stage - can read compilation results and write execution results."""
-    
-    # Shell command - read-only during execute stage
+class ExecuteContext(BaseModel):
+    """Context for the execute stage - script execution only."""
+    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True, extra='forbid')
+
+    # INPUTS: Everything needed for execution
+    compiled_script: str = Field(description="Compiled script with injected variables")
     shell_cmd: List[str] = Field(default_factory=list, description="Shell command for execution")
-    
-    # Compilation results - read-only during execute stage
-    compiled_script: str = Field(default="", description="Compiled script with injected variables")
     positional_values: List[str] = Field(default_factory=list, description="Positional argument values")
-    
-    # Execution results - writable during execute stage
-    output: str = Field(default="", description="Generated output")
+
+    # OUTPUTS: What execute produces
     exit_code: int = Field(default=0, description="Exit code from execution")
-    
+
+    # Temporary data for pipeline steps
+    temp_data: Dict[str, Any] = Field(default_factory=dict, description="Temporary data for pipeline steps")
+
     @field_validator('exit_code')
     @classmethod
     def validate_exit_code(cls, v: int) -> int:
@@ -140,3 +125,48 @@ class ExecuteContext(BaseContext):
         if not (0 <= v <= 255):
             raise ValueError("Exit code must be between 0 and 255")
         return v
+
+
+# Context transition functions
+def create_transform_context(analysis: AnalysisContext) -> TransformContext:
+    """Create a TransformContext from AnalysisContext results."""
+    return TransformContext(
+        undefined_vars=analysis.undefined_vars,
+        env_vars=analysis.env_vars,
+        positional_indices=analysis.positional_indices,
+        varargs=analysis.varargs,
+        annotations=analysis.annotations,
+        script_path=analysis.script_path
+    )
+
+
+def create_validate_context(transform: TransformContext, parsed_args: argparse.Namespace) -> ValidateContext:
+    """Create a ValidateContext from TransformContext and parsed args."""
+    return ValidateContext(
+        argument_parser=transform.argument_parser,
+        parsed_args=parsed_args
+    )
+
+
+def create_compile_context(
+    analysis: AnalysisContext, 
+    validate: ValidateContext, 
+    echo_mode: bool
+) -> CompileContext:
+    """Create a CompileContext from analysis and validation results."""
+    return CompileContext(
+        script_text=analysis.script_text,
+        parsed_args=validate.parsed_args,
+        echo_mode=echo_mode,
+        positional_indices=analysis.positional_indices,
+        varargs=analysis.varargs
+    )
+
+
+def create_execute_context(analysis: AnalysisContext, compile_ctx: CompileContext) -> ExecuteContext:
+    """Create an ExecuteContext from analysis and compilation results."""
+    return ExecuteContext(
+        compiled_script=compile_ctx.compiled_script,
+        shell_cmd=analysis.shell_cmd,
+        positional_values=compile_ctx.positional_values
+    )

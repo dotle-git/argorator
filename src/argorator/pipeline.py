@@ -17,7 +17,9 @@ from typing import List, Optional, Sequence, Dict, Any
 from .compilation import generate_export_lines
 from .contexts import (
     AnalysisContext, TransformContext, ValidateContext, 
-    CompileContext, ExecuteContext
+    CompileContext, ExecuteContext,
+    create_transform_context, create_validate_context,
+    create_compile_context, create_execute_context
 )
 from .execution import validate_script_path
 from .registry import pipeline_registry
@@ -27,20 +29,7 @@ from .transformers import build_top_level_parser
 from . import analyzers, transformers, validators, compilation, execution
 
 
-class PipelineData:
-    """Simple data holder for pipeline state."""
-    
-    def __init__(self):
-        self.data: Dict[str, Any] = {}
-    
-    def get(self, key: str, default: Any = None) -> Any:
-        return self.data.get(key, default)
-    
-    def set(self, key: str, value: Any) -> None:
-        self.data[key] = value
-    
-    def update(self, **kwargs) -> None:
-        self.data.update(kwargs)
+
 
 
 class PipelineCommand:
