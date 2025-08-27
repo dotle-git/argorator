@@ -74,6 +74,10 @@ class MacroProcessor:
     
     def _enhance_iteration_type(self, macro: IterationMacro) -> None:
         """Enhance iteration type based on variable type information."""
+        # If separator is provided, it's already delimited - don't change
+        if macro.separator is not None:
+            return
+        
         # If explicit type is already provided, keep it
         if macro.source_type:
             return

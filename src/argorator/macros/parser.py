@@ -201,6 +201,29 @@ class MacroParser:
         """Parse an iteration macro comment into a structured object."""
         content = comment.content
         
+        # Parse separator syntax first
+        separator = None
+        processed_content = content
+        
+        # Check for separator syntax variations
+        separator_patterns = [
+            # "sep X" syntax (quoted)
+            (r'(.+?)\s+sep\s+([\'"])(.+?)\2(?:\s+|$)', 3),
+            # "separated by X" syntax (quoted)  
+            (r'(.+?)\s+separated\s+by\s+([\'"])(.+?)\2(?:\s+|$)', 3),
+            # "sep X" syntax (unquoted)
+            (r'(.+?)\s+sep\s+([^\s|]+)(?:\s+|$)', 2),
+            # "separated by X" syntax (unquoted)
+            (r'(.+?)\s+separated\s+by\s+([^\s|]+)(?:\s+|$)', 2),
+        ]
+        
+        for pattern, sep_group in separator_patterns:
+            sep_match = re.search(pattern, content, re.IGNORECASE)
+            if sep_match:
+                processed_content = sep_match.group(1).strip()
+                separator = self._process_separator(sep_match.group(sep_group))
+                break
+        
         # Enhanced pattern to support "as Type" syntax:
         # for ITERATOR in SOURCE | with PARAM1 PARAM2
         # for ITERATOR in (SOURCE as TYPE) | with PARAM1 PARAM2
@@ -208,7 +231,7 @@ class MacroParser:
         
         # First, handle parenthesized format
         paren_pattern = r'for\s+(\w+)\s+in\s+\(([^)]+?)\s+as\s+(\w+)\)\s*(?:\|\s*with\s+(.+))?'
-        paren_match = re.match(paren_pattern, content, re.IGNORECASE)
+        paren_match = re.match(paren_pattern, processed_content, re.IGNORECASE)
         
         if paren_match:
             iterator_var = paren_match.group(1)
@@ -221,7 +244,7 @@ class MacroParser:
             # Handle non-parenthesized format
             # First try to match with "as TYPE" 
             as_pattern = r'for\s+(\w+)\s+in\s+(.+?)\s+as\s+(\w+)\s*(?:\|\s*with\s+(.+))?'
-            as_match = re.match(as_pattern, content, re.IGNORECASE)
+            as_match = re.match(as_pattern, processed_content, re.IGNORECASE)
             
             if as_match:
                 iterator_var = as_match.group(1)
@@ -233,7 +256,7 @@ class MacroParser:
             else:
                 # No "as TYPE", just normal format
                 pattern = r'for\s+(\w+)\s+in\s+(.+?)(?:\|\s*with\s+(.+?))?$'
-                match = re.match(pattern, content, re.IGNORECASE)
+                match = re.match(pattern, processed_content, re.IGNORECASE)
                 
                 if not match:
                     raise ValueError(f"Invalid iteration macro syntax: {content}")
@@ -246,8 +269,8 @@ class MacroParser:
                 if match.group(3):
                     additional_params = [p.strip() for p in match.group(3).split()]
         
-        # Determine iteration type (will be enhanced later with type mapping)
-        iteration_type = self._detect_iteration_type(source, source_type)
+        # Determine iteration type (enhanced with separator detection)
+        iteration_type = self._detect_iteration_type(source, source_type, separator)
         
         return IterationMacro(
             comment=comment,
@@ -256,11 +279,16 @@ class MacroParser:
             source=source,
             source_type=source_type,
             iteration_type=iteration_type,
+            separator=separator,
             additional_params=additional_params
         )
     
-    def _detect_iteration_type(self, source: str, source_type: Optional[str] = None) -> str:
-        """Detect the type of iteration based on source and explicit type."""
+    def _detect_iteration_type(self, source: str, source_type: Optional[str] = None, separator: Optional[str] = None) -> str:
+        """Detect the type of iteration based on source, type, and separator."""
+        # If separator is provided, it's delimited iteration
+        if separator is not None:
+            return 'delimited'
+        
         # If explicit type is provided, use it
         if source_type:
             if source_type == 'file':
@@ -284,6 +312,29 @@ class MacroParser:
         else:
             # Default to array iteration for variables
             return 'array'
+    
+    def _process_separator(self, separator_str: str) -> str:
+        """Process separator string, handling escape sequences."""
+        if not separator_str:
+            raise ValueError("Empty separator")
+        
+        # Handle Python-style escape sequences
+        result = separator_str
+        
+        # Common escape sequences
+        escape_map = {
+            '\\n': '\n',
+            '\\t': '\t',
+            '\\r': '\r',
+            '\\\\': '\\',
+            '\\"': '"',
+            "\\'": "'",
+        }
+        
+        for escaped, actual in escape_map.items():
+            result = result.replace(escaped, actual)
+        
+        return result
 
 # Global parser instance
 macro_parser = MacroParser()

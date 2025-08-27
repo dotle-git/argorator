@@ -206,3 +206,126 @@ echo "Processing: $line" > "$OUTPUT_DIR/processed.txt"'''
         # Should have transformed macro to file_lines iteration
         assert "while IFS= read -r line; do" in result
         assert "done < $INPUT_FILE" in result
+
+class TestDelimitedIteration:
+    """Test delimited string iteration macros."""
+    
+    def setup_method(self):
+        """Reset macro processor state before each test."""
+        macro_processor.set_variable_types({})
+    
+    def test_comma_separated_short_syntax(self):
+        """Test comma-separated iteration with short 'sep' syntax."""
+        script = '''# for item in $CSV_DATA sep ,
+echo "Item: $item"'''
+        
+        result = macro_processor.process_macros(script)
+        
+        assert "IFS=',' read -ra ARGORATOR_ARRAY_" in result
+        assert "for item in" in result
+        assert "echo \"Item: $item\"" in result
+        assert "done" in result
+    
+    def test_colon_separated_long_syntax(self):
+        """Test colon-separated iteration with 'separated by' syntax."""
+        script = '''# for field in $PATH separated by :
+echo "Path: $field"'''
+        
+        result = macro_processor.process_macros(script)
+        
+        assert "IFS=':' read -ra ARGORATOR_ARRAY_" in result
+        assert "for field in" in result
+        assert "echo \"Path: $field\"" in result
+        assert "done" in result
+    
+    def test_quoted_separator(self):
+        """Test separator with quotes."""
+        script = '''# for item in $DATA separated by ","
+echo "Item: $item"'''
+        
+        result = macro_processor.process_macros(script)
+        
+        assert "IFS=',' read -ra ARGORATOR_ARRAY_" in result
+        assert "for item in" in result
+        assert "done" in result
+    
+    def test_multi_character_separator(self):
+        """Test multi-character separator."""
+        script = '''# for part in $TEXT separated by "::"
+echo "Part: $part"'''
+        
+        result = macro_processor.process_macros(script)
+        
+        # Multi-char separators use sed-based approach
+        assert "sed 's/::/\\n/g'" in result
+        assert "for part in" in result
+        assert "echo \"Part: $part\"" in result
+        assert "done" in result
+    
+    def test_escaped_separator(self):
+        """Test separator with escape sequences."""
+        script = '''# for line in $DATA separated by "\\n"
+echo "Line: $line"'''
+        
+        result = macro_processor.process_macros(script)
+        
+        # Should handle newline separator properly
+        assert "for line in" in result
+        assert "echo \"Line: $line\"" in result
+        assert "done" in result
+    
+    def test_function_with_delimiter(self):
+        """Test delimited iteration with function target."""
+        script = '''# for item in $LIST sep |
+process_item() {
+    echo "Processing: $1"
+    echo "Item processed"
+}'''
+        
+        result = macro_processor.process_macros(script)
+        
+        # Should contain function definition
+        assert "process_item() {" in result
+        
+        # Should contain delimited loop calling function
+        assert "IFS='|' read -ra ARGORATOR_ARRAY_" in result
+        assert 'process_item "$item"' in result
+        assert "done" in result
+    
+    def test_space_separator(self):
+        """Test space as separator."""
+        script = '''# for word in $SENTENCE sep " "
+echo "Word: $word"'''
+        
+        result = macro_processor.process_macros(script)
+        
+        assert "IFS=' ' read -ra ARGORATOR_ARRAY_" in result
+        assert "for word in" in result
+        assert "done" in result
+    
+    def test_tab_separator(self):
+        """Test tab separator with escape sequence."""
+        script = '''# for field in $TSV_ROW separated by "\\t"
+echo "Field: $field"'''
+        
+        result = macro_processor.process_macros(script)
+        
+        # Should handle tab character properly
+        assert "for field in" in result
+        assert "echo \"Field: $field\"" in result
+        assert "done" in result
+    
+    def test_delimiter_with_additional_params(self):
+        """Test delimited iteration with additional parameters."""
+        script = '''# for item in $CSV sep , | with $OUTPUT_FILE
+write_item() {
+    local item="$1"
+    local output="$2"
+    echo "$item" >> "$output"
+}'''
+        
+        result = macro_processor.process_macros(script)
+        
+        assert "IFS=',' read -ra ARGORATOR_ARRAY_" in result
+        assert 'write_item "$item" "$OUTPUT_FILE"' in result
+        assert "done" in result
