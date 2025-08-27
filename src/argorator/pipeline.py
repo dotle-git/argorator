@@ -16,7 +16,7 @@ from typing import List, Optional, Sequence
 
 from .compilation import generate_export_lines
 from .contexts import FullPipelineContext, create_stage_context, update_full_context
-from .execution import read_text_file, validate_script_path
+from .execution import validate_script_path
 from .registry import pipeline_registry
 from .transformers import build_top_level_parser
 
@@ -119,7 +119,7 @@ class Pipeline:
         context.script_path = command.script_path
         context.echo_mode = command.echo_mode
         context.rest_args = command.rest_args
-        context.script_text = read_text_file(command.script_path)
+        context.script_text = command.script_path.read_text(encoding="utf-8")
         return context
     
     def run_analysis_stage(self, context: FullPipelineContext) -> None:

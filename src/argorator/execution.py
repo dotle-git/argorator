@@ -21,19 +21,6 @@ def execute_script(context: ExecuteContext) -> None:
     context.exit_code = process.wait()
 
 
-def read_text_file(file_path: Path) -> str:
-    """Read and return the file's content as UTF-8 text.
-
-    Args:
-        file_path: Path to the file
-
-    Returns:
-        Entire file content as a string
-    """
-    with file_path.open("r", encoding="utf-8") as f:
-        return f.read()
-
-
 def validate_script_path(script_arg: str) -> Path:
     """Validate and normalize a script path.
     
