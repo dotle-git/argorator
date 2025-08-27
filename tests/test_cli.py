@@ -124,6 +124,20 @@ echo done
 	assert rc == 0
 
 
+def test_single_line_next_line_is_function_name(tmp_path: Path):
+	script_content = """#!/bin/bash
+doit() {
+  echo "<${1}>"
+}
+
+# for X in XS
+doit
+"""
+	script = write_temp_script(tmp_path, script_content)
+	rc = cli.main(["run", str(script), "--xs", "u v"])  # Should call doit "$X"
+	assert rc == 0
+
+
 def test_help_shows_env_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
 	"""Test that environment variable defaults are shown in help text."""
 	# Set environment variables that will be used in the script

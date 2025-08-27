@@ -33,6 +33,8 @@ _FOR_START_RE = re.compile(
 )
 _FOR_END_RE = re.compile(r"^\s*#\s*endfor\s*$")
 _SHELL_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_BARE_FUNC_CALL_RE = re.compile(r"^(?P<indent>\s*)(?P<func>[A-Za-z_][A-Za-z0-9_]*)\s*$")
+_FUNC_DEF_TEMPLATE = r"^\s*(?:function\s+)?{name}\s*\(\s*\)\s*\{"
 
 
 class _ForFrame:
@@ -89,6 +91,10 @@ def expand_macros(script_text: str) -> str:
                     return True
         return False
 
+    def is_defined_function_anywhere(func_name: str) -> bool:
+        pattern = re.compile(r"^\s*(?:function\s+)?" + re.escape(func_name) + r"\s*\(\s*\)\s*\{")
+        return any(pattern.match(ln) is not None for ln in lines)
+
     i = 0
     while i < len(lines):
         raw_line = lines[i]
@@ -113,6 +119,14 @@ def expand_macros(script_text: str) -> str:
                 i += 1
                 if i < len(lines):
                     next_line = lines[i]
+                    # If next line is a bare function name and that function is defined in the script,
+                    # treat it as a call passing the loop variable as $1
+                    m_call = _BARE_FUNC_CALL_RE.match(next_line)
+                    if m_call is not None:
+                        func_candidate = m_call.group("func")
+                        indent_call = m_call.group("indent")
+                        if is_defined_function_anywhere(func_candidate):
+                            next_line = f"{indent_call}{func_candidate} \"${var_name}\""
                     stack[-1].body_lines.append(next_line)
                 close_top_frame()
                 # Do not process next_line again if we consumed it as body
