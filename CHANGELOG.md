@@ -33,16 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Refactored `execution.py` to use `@executor` decorators
   - Updated `pipeline.py` to orchestrate stages using the registry system with proper context isolation
   - Added data validation for exit codes (0-255) and positional indices (positive integers)
-  - **Added new VALIDATE stage for argument validation and transformation**:
+  - **Added new VALIDATE stage infrastructure for future argument validation and transformation**:
     - `ValidateContext`: Can read parser/args and write validated/transformed arguments
-    - File path validation and transformation to pathlib.Path objects
-    - Numeric range validation (ports, timeouts, retry counts)
-    - Cross-argument validation (input/output path conflicts)
-    - Security warnings for credential variables
-    - Shell compatibility preparation for complex types
+    - Empty stage ready for future validation step implementations
+    - Extensible via `@validator` decorators for custom validation logic
   - **Enforced proper separation of concerns through Pydantic model validation**
   - Maintained full backward compatibility while improving extensibility and testability
-  - Pipeline stages: 1) Script analysis (7 steps), 2) Parser transformation (4 steps), 3) Argument parsing, 4) **Argument validation (6 steps)**, 5) Script compilation (4 steps), 6) Script execution (1 step)
+  - Pipeline stages: 1) Script analysis (7 steps), 2) Parser transformation (4 steps), 3) Argument parsing, 4) **Argument validation (0 steps - infrastructure ready)**, 5) Script compilation (4 steps), 6) Script execution (1 step)
 
 ### Fixed
 
