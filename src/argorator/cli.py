@@ -338,6 +338,61 @@ def generate_export_lines(assignments: Dict[str, str]) -> str:
 	return "\n".join(lines)
 
 
+
+def transform_script_to_echo_mode(script_text: str) -> str:
+	"""Transform the provided script so each executable line is echoed instead of run.
+
+	Rules:
+	- Preserve shebang if present
+	- Preserve the argorator injection block and assignments so variables expand in echoes
+	- For other non-empty, non-comment lines, output: echo "<line>" with quotes-escaped
+	- Wrap the entire original line in double quotes to neutralize pipes and operators
+	"""
+	lines = script_text.splitlines()
+	result_lines: List[str] = []
+
+	idx = 0
+	# Preserve shebang line
+	if lines and lines[0].startswith("#!"):
+		result_lines.append(lines[0])
+		idx = 1
+
+	# Preserve argorator injection block if present
+	# Look for the marker comment and include following assignment lines (until a blank line break or non-assignment)
+	if idx < len(lines) and lines[idx].startswith("# argorator: injected variable definitions"):
+		result_lines.append(lines[idx])
+		idx += 1
+		while idx < len(lines):
+			line = lines[idx]
+			# Keep variable assignment lines (NAME=...)
+			if re.match(r"^\s*[A-Za-z_][A-Za-z0-9_]*=", line):
+				result_lines.append(line)
+				idx += 1
+				continue
+			break
+
+	# Process the rest: echo each non-empty, non-comment line
+	while idx < len(lines):
+		line = lines[idx]
+		# Preserve exact blank lines
+		if line.strip() == "":
+			result_lines.append(line)
+			idx += 1
+			continue
+		# Keep pure comment lines as-is (not echoed)
+		if line.lstrip().startswith("#"):
+			result_lines.append(line)
+			idx += 1
+			continue
+		# Escape backslashes and double quotes so we can wrap with double quotes.
+		escaped = line.replace("\\", "\\\\").replace('"', '\\"')
+		result_lines.append(f'echo "{escaped}"')
+		idx += 1
+
+	# Ensure trailing newline behavior matches input
+	return "\n".join(result_lines) + ("\n" if script_text.endswith("\n") else "")
+
+
 def run_script_with_args(shell_cmd: List[str], script_text: str, positional_args: List[str]) -> int:
 	"""Execute the provided script text with a shell, passing positional args.
 
@@ -358,9 +413,11 @@ def build_top_level_parser() -> argparse.ArgumentParser:
 	# run
 	run_parser = subparsers.add_parser("run", help="Run script (default)")
 	run_parser.add_argument("script", help="Path to the shell script")
+	run_parser.add_argument("--echo", action="store_true", help="Print commands that would run (no execution)")
 	# compile
 	compile_parser = subparsers.add_parser("compile", help="Print modified script")
 	compile_parser.add_argument("script", help="Path to the shell script")
+	compile_parser.add_argument("--echo", action="store_true", help="Print echo-transformed script (dry run view)")
 	# export
 	export_parser = subparsers.add_parser("export", help="Print export lines")
 	export_parser.add_argument("script", help="Path to the shell script")
@@ -385,11 +442,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		command = ns.subcmd or "run"
 		script_arg: Optional[str] = getattr(ns, "script", None)
 		rest_args: List[str] = unknown
+		echo_mode: bool = bool(getattr(ns, "echo", False))
 		if script_arg is None:
 			print("error: script path is required", file=sys.stderr)
 			return 2
 	else:
-		# Implicit run path: use a minimal parser to capture script and remainder
+		# Implicit run path: use a minimal parser that captures the remainder so --help
+		# is handled by the dynamic parser, not this minimal one. Detect --echo in remainder.
 		implicit = argparse.ArgumentParser(prog="argorator", add_help=True, description="Execute or compile shell scripts with CLI-exposed variables")
 		implicit.add_argument("script", help="Path to the shell script")
 		implicit.add_argument("rest", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
@@ -399,7 +458,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 			return int(exc.code)
 		command = "run"
 		script_arg = in_ns.script
-		rest_args = list(in_ns.rest or [])
+		# Determine echo mode and strip flag from remainder
+		incoming_rest: List[str] = list(in_ns.rest or [])
+		echo_mode = False
+		filtered_rest: List[str] = []
+		for token in incoming_rest:
+			if token == "--":
+				# Preserve separator; after this, do not interpret flags
+				filtered_rest.append(token)
+				filtered_rest.extend(incoming_rest[incoming_rest.index(token) + 1:])
+				break
+			if token == "--echo":
+				echo_mode = True
+				continue
+			filtered_rest.append(token)
+		rest_args = filtered_rest
 	# Validate and normalize script path
 	script_path = Path(script_arg).expanduser()
 	try:
@@ -458,10 +531,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 		return 0
 	modified_text = inject_variable_assignments(script_text, assignments)
 	if command == "compile":
+		if echo_mode:
+			echo_text = transform_script_to_echo_mode(modified_text)
+			print(echo_text, end="" if echo_text.endswith("\n") else "\n")
+			return 0
 		print(modified_text, end="" if modified_text.endswith("\n") else "\n")
 		return 0
 	# run
 	shell_cmd = detect_shell_interpreter(script_text)
+	if echo_mode:
+		echo_text = transform_script_to_echo_mode(modified_text)
+		return run_script_with_args(shell_cmd, echo_text, positional_values)
 	return run_script_with_args(shell_cmd, modified_text, positional_values)
 
 
