@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+- Fixed compile/run/export sub-command help showing "argorator" instead of script name in usage line
+- Fixed script descriptions not appearing in compile/run/export sub-command help output
 
 ## [0.5.1] - 2025-01-28
 
