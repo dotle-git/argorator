@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fixed iterator macros over indented blocks not including all indented content in the loop
+- Fixed iterator macros incorrectly including subsequent top-level content separated by blank lines
 
 ## [0.5.1] - 2025-01-28
 
