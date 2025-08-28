@@ -184,12 +184,8 @@ class MacroParser:
         for i in range(start_line + 1, len(lines)):
             line = lines[i]
             
-            # Handle empty lines
+            # Empty lines are included in the block
             if not line.strip():
-                # For zero indentation (top-level), stop at empty lines as they often separate logical sections
-                if target_indent == 0:
-                    break
-                # For indented content, empty lines are part of the block, continue to next line
                 continue
             
             # If this line is a macro comment, stop the block

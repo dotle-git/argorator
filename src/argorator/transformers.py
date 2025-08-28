@@ -5,7 +5,7 @@ build appropriate argparse parsers using the decorator pattern. Each transformer
 handles a specific aspect of parser construction.
 """
 import argparse
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from .contexts import TransformContext
 from .models import ArgumentAnnotation
@@ -250,26 +250,33 @@ def add_typed_argument(
     parser.add_argument(*arg_names, **kwargs)
 
 
-def build_top_level_parser() -> argparse.ArgumentParser:
-    """Build the top-level argparse parser with run/compile/export subcommands."""
+def build_top_level_parser(script_name: str = "argorator", script_description: Optional[str] = None) -> argparse.ArgumentParser:
+    """Build the top-level argparse parser with run/compile/export subcommands.
+    
+    Args:
+        script_name: The script name to use for the program name (defaults to "argorator")
+        script_description: Optional script description to use instead of default
+    """
+    description = script_description or "Execute or compile shell scripts with CLI-exposed variables"
+    
     parser = argparse.ArgumentParser(
-        prog="argorator", 
-        description="Execute or compile shell scripts with CLI-exposed variables"
+        prog=script_name, 
+        description=description
     )
     subparsers = parser.add_subparsers(dest="subcmd")
     
     # run
-    run_parser = subparsers.add_parser("run", help="Run script (default)")
+    run_parser = subparsers.add_parser("run", help="Run script (default)", description=script_description)
     run_parser.add_argument("script", help="Path to the shell script")
     run_parser.add_argument("--echo", action="store_true", help="Print commands that would run (no execution)")
     
     # compile
-    compile_parser = subparsers.add_parser("compile", help="Print modified script")
+    compile_parser = subparsers.add_parser("compile", help="Print modified script", description=script_description)
     compile_parser.add_argument("script", help="Path to the shell script")
     compile_parser.add_argument("--echo", action="store_true", help="Print echo-transformed script (dry run view)")
     
     # export
-    export_parser = subparsers.add_parser("export", help="Print export lines")
+    export_parser = subparsers.add_parser("export", help="Print export lines", description=script_description)
     export_parser.add_argument("script", help="Path to the shell script")
     
     return parser

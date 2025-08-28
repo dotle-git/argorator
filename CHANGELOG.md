@@ -20,8 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+- Fixed compile/run/export sub-command help showing "argorator" instead of script name in usage line
+- Fixed script descriptions not appearing in compile/run/export sub-command help output
 - Fixed iterator macros over indented blocks not including all indented content in the loop
-- Fixed iterator macros incorrectly including subsequent top-level content separated by blank lines
 
 ## [0.5.1] - 2025-01-28
 
