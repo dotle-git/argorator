@@ -87,18 +87,20 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 	# or: # VAR_NAME (choice[opt1, opt2]): description
 	# or: # VAR_NAME: description
 	pattern = re.compile(
-		r'^\s*#\s*'
-		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name (any case)
-		r'(?:\s*\('  # Optional type section
-		r'(bool|int|float|str|string|choice|file)'  # Type
-		r'(?:\[([^\]]+)\])?'  # Optional choices for choice type
-		r'\))?'
-		r'(?:\s*\[alias:\s*([^\]]+)\])?'  # Optional alias
-		r'\s*:\s*'  # Colon separator
-		r'([^.]+?)' # Description (up to period or end)
-		r'(?:\.\s*[Dd]efault:\s*(.+?))?'  # Optional default value
-		r'\s*$',  # End of line
-		re.MULTILINE | re.IGNORECASE
+	    r'^\\s*#\\s*'
+	    r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name (any case)
+	    r'(?:\\s*\\('  # Optional type section
+	    r'(bool|int|float|str|string|choice|file)'  # Type
+	    r'(?:\\[([^\\]]+)\\])?'  # Optional choices for choice type
+	    r'\\))?'
+	    r'(?:\\s*\\[alias:\\s*([^\\]]+)\\])?'  # Optional alias
+	    r'\\s*:\\s*'  # Colon separator
+	    r'([^.]+?)'  # Description (up to first period or end)
+	    # Optional default spec which may be prefixed by an optional period, optional whitespace,
+	    # the word "default" (any case), optional colon, then the value until end-of-line
+	    r'(?:\\.?\\s*[Dd]efault\\s*:?\\s*(.+?))?'  # Optional default value
+	    r'\\s*$',  # End of line
+	    re.MULTILINE | re.IGNORECASE
 	)
 	
 	for match in pattern.finditer(script_text):
