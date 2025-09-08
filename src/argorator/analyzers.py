@@ -109,8 +109,12 @@ def parse_variable_usages(script_text: str) -> Set[str]:
     return {name for name in candidates if name and name not in SPECIAL_VARS}
 
 
-def parse_positional_usages(script_text: str) -> Tuple[Set[int], bool]:
+def parse_positional_usages(script_text: str, exclude_function_params: Optional[Set[str]] = None) -> Tuple[Set[int], bool]:
     """Extract positional parameter indices and varargs usage from script.
+    
+    Args:
+        script_text: The script content
+        exclude_function_params: Set of function parameter indices to exclude (e.g., {'1', '2'})
     
     Returns:
         Tuple of (positional_indices, varargs_present)
@@ -120,6 +124,10 @@ def parse_positional_usages(script_text: str) -> Tuple[Set[int], bool]:
     
     indices = {int(m) for m in digit_pattern.findall(script_text)}
     varargs = bool(varargs_pattern.search(script_text))
+    
+    # Exclude function parameters that are used with iterator macros
+    if exclude_function_params:
+        indices = {idx for idx in indices if str(idx) not in exclude_function_params}
     
     return indices, varargs
 
@@ -163,11 +171,23 @@ def analyze_loop_variables(context: AnalysisContext) -> None:
     context.loop_vars = parse_loop_variables(context.script_text)
 
 
-@analyzer(order=21.5)
+@analyzer(order=45)
 def identify_macro_iterator_variables(context: AnalysisContext) -> None:
     """Identify iterator variables from iteration macros to exclude from undefined variables."""
     try:
         from .macros.parser import macro_parser
+        from .macros.processor import macro_processor
+        
+        # Extract variable types from annotations and pass to macro processor
+        variable_types = {}
+        
+        # Get types from argument annotations (if available)
+        if context.annotations:
+            for var_name, annotation in context.annotations.items():
+                variable_types[var_name] = annotation.type
+        
+        # Set variable types in macro processor
+        macro_processor.set_variable_types(variable_types)
         
         # Find all iteration macro comments
         macro_comments = macro_parser.find_macro_comments(context.script_text)
@@ -203,7 +223,7 @@ def identify_macro_iterator_variables(context: AnalysisContext) -> None:
         context.temp_data['macro_function_param_vars'] = set()
 
 
-@analyzer(order=22)
+@analyzer(order=46)
 def analyze_undefined_variables(context: AnalysisContext) -> None:
     """Identify variables that are used but not defined in the script."""
     # Get iterator variables and function parameter variables identified by macro analysis
@@ -231,10 +251,13 @@ def analyze_environment_variables(context: AnalysisContext) -> None:
     context.undefined_vars = remaining_undefined
 
 
-@analyzer(order=30)
+@analyzer(order=48)
 def analyze_positional_parameters(context: AnalysisContext) -> None:
     """Detect positional parameter usage and varargs references in the script."""
-    indices, varargs = parse_positional_usages(context.script_text)
+    # Get function parameter variables that are used with iterator macros
+    macro_function_param_vars = context.temp_data.get('macro_function_param_vars', set())
+    
+    indices, varargs = parse_positional_usages(context.script_text, exclude_function_params=macro_function_param_vars)
     context.positional_indices = indices
     context.varargs = varargs
 
