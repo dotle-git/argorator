@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fixed default value parsing in Google-style annotations
+  - Empty default values (e.g., `Default:` or `Default: `) are now properly handled as no default
+  - Descriptions ending with periods (e.g., `# VAR (str): Description.`) are now correctly parsed
+  - Improved regex pattern to prevent cross-line matching issues
+  - Line-by-line processing prevents multiline default value contamination
+
 ## [0.5.2] - 2025-01-28
 
 ### Added

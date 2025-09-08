@@ -82,32 +82,70 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 	"""
 	annotations = {}
 	
-	# Pattern for Google-style docstring annotations
-	# Matches: # VAR_NAME (type) [alias: -x]: description. Default: value
-	# or: # VAR_NAME (choice[opt1, opt2]): description
-	# or: # VAR_NAME: description
-	pattern = re.compile(
-		r'^\s*#\s*'
-		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name (any case)
-		r'(?:\s*\('  # Optional type section
-		r'(bool|int|float|str|string|choice|file)'  # Type
-		r'(?:\[([^\]]+)\])?'  # Optional choices for choice type
-		r'\))?'
-		r'(?:\s*\[alias:\s*([^\]]+)\])?'  # Optional alias
-		r'\s*:\s*'  # Colon separator
-		r'([^.]+?)' # Description (up to period or end)
-		r'(?:\.\s*[Dd]efault:\s*(.+?))?'  # Optional default value
-		r'\s*$',  # End of line
-		re.MULTILINE | re.IGNORECASE
-	)
+	# Process line by line to avoid regex issues with multiline matching
+	lines = script_text.split('\n')
 	
-	for match in pattern.finditer(script_text):
-		var_name = match.group(1).upper()  # Normalize to uppercase for shell variables
-		var_type = match.group(2) or 'str'
-		choices_str = match.group(3)
-		alias = match.group(4)
-		description = match.group(5).strip()
-		default = match.group(6)
+	for line in lines:
+		line = line.strip()
+		if not line.startswith('#'):
+			continue
+			
+		# Remove the # and any leading whitespace
+		line = line[1:].strip()
+		
+		# Pattern for Google-style docstring annotations
+		# Matches: VAR_NAME (type) [alias: -x]: description. Default: value
+		# or: VAR_NAME (choice[opt1, opt2]): description
+		# or: VAR_NAME: description
+		pattern = re.compile(
+			r'^'
+			r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name (any case)
+			r'(?:\s*\('  # Optional type section
+			r'(bool|int|float|str|string|choice|file)'  # Type
+			r'(?:\[([^\]]+)\])?'  # Optional choices for choice type
+			r'\))?'
+			r'(?:\s*\[alias:\s*([^\]]+)\])?'  # Optional alias
+			r'\s*:\s*'  # Colon separator
+			r'([^.]*?)' # Description (up to period, can be empty)
+			r'(?:\.\s*[Dd]efault:\s*(.*?))?'  # Optional default value (rest of line, can be empty)
+			r'$',  # End of line
+			re.IGNORECASE
+		)
+		
+		# Also try a pattern for descriptions that end with a period (no default)
+		pattern_no_default = re.compile(
+			r'^'
+			r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name (any case)
+			r'(?:\s*\('  # Optional type section
+			r'(bool|int|float|str|string|choice|file)'  # Type
+			r'(?:\[([^\]]+)\])?'  # Optional choices for choice type
+			r'\))?'
+			r'(?:\s*\[alias:\s*([^\]]+)\])?'  # Optional alias
+			r'\s*:\s*'  # Colon separator
+			r'(.*\.)$',  # Description ending with period (no default)
+			re.IGNORECASE
+		)
+		
+		match = pattern.match(line)
+		if not match:
+			# Try the pattern for descriptions ending with period (no default)
+			match = pattern_no_default.match(line)
+			if not match:
+				continue
+			# For the no-default pattern, we only have 5 groups
+			var_name = match.group(1).upper()  # Normalize to uppercase for shell variables
+			var_type = match.group(2) or 'str'
+			choices_str = match.group(3)
+			alias = match.group(4)
+			description = match.group(5).strip()
+			default = None
+		else:
+			var_name = match.group(1).upper()  # Normalize to uppercase for shell variables
+			var_type = match.group(2) or 'str'
+			choices_str = match.group(3)
+			alias = match.group(4)
+			description = match.group(5).strip()
+			default = match.group(6)
 		
 		# Normalize type
 		if var_type.lower() in ('string', 'str'):
@@ -124,8 +162,11 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 		if var_type == 'choice' and choices_str:
 			annotation_data['choices'] = [c.strip() for c in choices_str.split(',')]
 			
-		if default:
-			annotation_data['default'] = default.strip()
+		if default is not None:
+			# Handle empty default values (e.g., "Default: " with no value)
+			default_value = default.strip()
+			if default_value:
+				annotation_data['default'] = default_value
 			
 		if alias:
 			annotation_data['alias'] = alias.strip()
