@@ -98,9 +98,13 @@ def add_positional_arguments(context: TransformContext) -> None:
     if not context.argument_parser:
         raise ValueError("Base parser must be created first")
     
-    # Add numbered positional arguments
+    # Get function parameter variables that are used with iterator macros
+    macro_function_param_vars = context.temp_data.get('macro_function_param_vars', set())
+    
+    # Add numbered positional arguments, excluding those used with iterator macros
     for index in sorted(context.positional_indices):
-        context.argument_parser.add_argument(f"ARG{index}")
+        if str(index) not in macro_function_param_vars:
+            context.argument_parser.add_argument(f"ARG{index}")
     
     # Add varargs if needed
     if context.varargs:

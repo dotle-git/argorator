@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Fixed function parameters being incorrectly treated as CLI arguments when used with iterator macros
+  - Function parameters (`$1`, `$2`, etc.) within functions that have iterator macros are now properly excluded from CLI argument generation
+  - The macro-generated loop provides these parameters instead of requiring them as CLI arguments
+  - This fixes the bug where scripts with iterator macros would incorrectly require `--1`, `--2`, etc. arguments
 - Fixed default value parsing in Google-style annotations
   - Empty default values (e.g., `Default:` or `Default: `) are now properly handled as no default
   - Descriptions ending with periods (e.g., `# VAR (str): Description.`) are now correctly parsed

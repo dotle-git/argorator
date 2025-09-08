@@ -124,6 +124,27 @@ def parse_positional_usages(script_text: str) -> Tuple[Set[int], bool]:
     return indices, varargs
 
 
+def _extract_function_parameters(script_text: str, function_target) -> Set[str]:
+    """Extract function parameter variables used within a function that has an iteration macro.
+    
+    Args:
+        script_text: The full script content
+        function_target: The MacroTarget representing the function
+        
+    Returns:
+        Set of function parameter variable names (e.g., {'1', '2', '3'})
+    """
+    lines = script_text.split('\n')
+    function_lines = lines[function_target.start_line:function_target.end_line + 1]
+    function_content = '\n'.join(function_lines)
+    
+    # Find all positional parameter usages within the function
+    digit_pattern = re.compile(r"\$([1-9][0-9]*)")
+    param_indices = {m for m in digit_pattern.findall(function_content)}
+    
+    return param_indices
+
+
 @analyzer(order=20)
 def analyze_variable_usages(context: AnalysisContext) -> None:
     """Find all variables referenced in the script."""
@@ -151,6 +172,7 @@ def identify_macro_iterator_variables(context: AnalysisContext) -> None:
         # Find all iteration macro comments
         macro_comments = macro_parser.find_macro_comments(context.script_text)
         iterator_vars = set()
+        function_param_vars = set()
         
         for comment in macro_comments:
             if comment.macro_type == 'iteration':
@@ -161,26 +183,35 @@ def identify_macro_iterator_variables(context: AnalysisContext) -> None:
                     if target:
                         iteration_macro = macro_parser.parse_iteration_macro(comment, target)
                         iterator_vars.add(iteration_macro.iterator_var)
+                        
+                        # If this macro targets a function, identify function parameters used within that function
+                        if target.target_type == 'function':
+                            function_params = _extract_function_parameters(context.script_text, target)
+                            function_param_vars.update(function_params)
+                            
                 except Exception:
                     # If parsing fails, continue with other macros
                     pass
         
-        # Store iterator variables in temp_data for use in next analyzer
+        # Store iterator variables and function parameter variables in temp_data for use in next analyzer
         context.temp_data['macro_iterator_vars'] = iterator_vars
+        context.temp_data['macro_function_param_vars'] = function_param_vars
         
     except ImportError:
         # If macro modules aren't available, skip this step
         context.temp_data['macro_iterator_vars'] = set()
+        context.temp_data['macro_function_param_vars'] = set()
 
 
 @analyzer(order=22)
 def analyze_undefined_variables(context: AnalysisContext) -> None:
     """Identify variables that are used but not defined in the script."""
-    # Get iterator variables identified by macro analysis
+    # Get iterator variables and function parameter variables identified by macro analysis
     macro_iterator_vars = context.temp_data.get('macro_iterator_vars', set())
+    macro_function_param_vars = context.temp_data.get('macro_function_param_vars', set())
     
-    # Exclude iterator variables and loop variables from undefined variables
-    undefined_vars = context.all_used_vars - context.defined_vars - macro_iterator_vars - context.loop_vars
+    # Exclude iterator variables, function parameter variables, and loop variables from undefined variables
+    undefined_vars = context.all_used_vars - context.defined_vars - macro_iterator_vars - macro_function_param_vars - context.loop_vars
     context.undefined_vars = {name: None for name in sorted(undefined_vars)}
 
 
