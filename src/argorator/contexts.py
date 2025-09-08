@@ -150,7 +150,8 @@ def create_transform_context(analysis: AnalysisContext) -> TransformContext:
         varargs=analysis.varargs,
         annotations=analysis.annotations,
         script_metadata=analysis.script_metadata,
-        script_path=analysis.script_path
+        script_path=analysis.script_path,
+        temp_data=analysis.temp_data.copy()
     )
 
 

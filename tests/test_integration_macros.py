@@ -188,7 +188,8 @@ process_item() {
 }
 '''
         
-        output = self._run_argorator(script, ['--data', "a'b'c", 'dummy1', 'dummy2'])
+        # Function parameters $1 and $2 are provided by the macro, not CLI arguments
+        output = self._run_argorator(script, ['--data', "a'b'c"])
         assert 'Processing: a with prefix' in output
         assert 'Processing: b with prefix' in output
         assert 'Processing: c with prefix' in output
