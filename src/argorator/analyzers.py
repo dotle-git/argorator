@@ -235,7 +235,7 @@ def analyze_undefined_variables(context: AnalysisContext) -> None:
     context.undefined_vars = {name: None for name in sorted(undefined_vars)}
 
 
-@analyzer(order=23)
+@analyzer(order=47)
 def analyze_environment_variables(context: AnalysisContext) -> None:
     """Separate undefined variables into those with environment defaults and truly undefined."""
     env_vars: Dict[str, str] = {}
@@ -251,7 +251,7 @@ def analyze_environment_variables(context: AnalysisContext) -> None:
     context.undefined_vars = remaining_undefined
 
 
-@analyzer(order=48)
+@analyzer(order=49)
 def analyze_positional_parameters(context: AnalysisContext) -> None:
     """Detect positional parameter usage and varargs references in the script."""
     # Get function parameter variables that are used with iterator macros
