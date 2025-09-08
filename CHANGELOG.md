@@ -13,14 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2025-01-28
+
 ### Added
 - Set argument parser program name to script filename without extension for better help display
 - Support for `# Description: ...` annotation to add script description to help output (using parsy for consistent parsing)
 
-### Changed
-
 ### Fixed
+- Loop variables (e.g., `$file` in `for file in *.txt; do`) are no longer incorrectly treated as required CLI arguments
+- Variables defined in `for`, `while read`, and C-style `for` loops are now properly excluded from undefined variable detection
 - Fixed compile/run/export sub-command help showing "argorator" instead of script name in usage line
+
+### Changed
 - Fixed script descriptions not appearing in compile/run/export sub-command help output
 
 ## [0.5.1] - 2025-01-28
