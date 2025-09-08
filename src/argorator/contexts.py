@@ -30,6 +30,7 @@ class AnalysisContext(BaseContext):
     shell_cmd: List[str] = Field(default_factory=list, description="Shell command for execution")
     all_used_vars: Set[str] = Field(default_factory=set, description="All variables referenced in script")
     defined_vars: Set[str] = Field(default_factory=set, description="Variables defined within script")
+    loop_vars: Set[str] = Field(default_factory=set, description="Variables defined in loop constructs")
     undefined_vars: Dict[str, Optional[str]] = Field(default_factory=dict, description="Variables not defined in script")
     env_vars: Dict[str, str] = Field(default_factory=dict, description="Variables with environment defaults")
     positional_indices: Set[int] = Field(default_factory=set, description="Positional parameter indices used")

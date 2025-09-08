@@ -62,6 +62,40 @@ def parse_defined_variables(script_text: str) -> Set[str]:
     return set(assignment_pattern.findall(script_text))
 
 
+def parse_loop_variables(script_text: str) -> Set[str]:
+    """Extract variable names that are defined in loop constructs.
+    
+    Matches loop variables in:
+    - for loops: for VAR in ...; do
+    - while loops with read: while IFS= read -r VAR; do
+    - C-style for loops: for ((VAR=...; VAR<...; VAR++)); do
+    """
+    loop_vars = set()
+    
+    # for VAR in ...; do (handle both quoted and unquoted variables)
+    for_pattern = re.compile(
+        r"^\s*for\s+(?:[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?)\s+in\s+",
+        re.MULTILINE
+    )
+    loop_vars.update(for_pattern.findall(script_text))
+    
+    # while IFS= read -r VAR; do (handle both quoted and unquoted variables)
+    while_read_pattern = re.compile(
+        r"^\s*while\s+.*read\s+-r\s+(?:[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?)\s*;?\s*do",
+        re.MULTILINE
+    )
+    loop_vars.update(while_read_pattern.findall(script_text))
+    
+    # for ((VAR=...; VAR<...; VAR++)); do
+    c_style_for_pattern = re.compile(
+        r"^\s*for\s*\(\s*\(([A-Za-z_][A-Za-z0-9_]*)\s*=",
+        re.MULTILINE
+    )
+    loop_vars.update(c_style_for_pattern.findall(script_text))
+    
+    return loop_vars
+
+
 def parse_variable_usages(script_text: str) -> Set[str]:
     """Find variable names referenced by $VAR or ${VAR...} syntax.
 
@@ -102,6 +136,12 @@ def analyze_defined_variables(context: AnalysisContext) -> None:
     context.defined_vars = parse_defined_variables(context.script_text)
 
 
+@analyzer(order=21.2)
+def analyze_loop_variables(context: AnalysisContext) -> None:
+    """Extract variables that are defined in loop constructs."""
+    context.loop_vars = parse_loop_variables(context.script_text)
+
+
 @analyzer(order=21.5)
 def identify_macro_iterator_variables(context: AnalysisContext) -> None:
     """Identify iterator variables from iteration macros to exclude from undefined variables."""
@@ -139,8 +179,8 @@ def analyze_undefined_variables(context: AnalysisContext) -> None:
     # Get iterator variables identified by macro analysis
     macro_iterator_vars = context.temp_data.get('macro_iterator_vars', set())
     
-    # Exclude iterator variables from undefined variables
-    undefined_vars = context.all_used_vars - context.defined_vars - macro_iterator_vars
+    # Exclude iterator variables and loop variables from undefined variables
+    undefined_vars = context.all_used_vars - context.defined_vars - macro_iterator_vars - context.loop_vars
     context.undefined_vars = {name: None for name in sorted(undefined_vars)}
 
 
