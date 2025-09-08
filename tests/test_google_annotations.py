@@ -224,3 +224,17 @@ fi
                       "--environment", "dev"])
     
     assert result == 0  # Should succeed with defaults
+
+
+def test_parse_google_default_without_period():
+    """Test that defaults are parsed when 'Default:' is not preceded by a period."""
+    script = """
+    # ARG (str): Help text Default: value
+    # FOO (int): Number default: 42
+    """
+    annotations = parse_arg_annotations(script)
+ 
+    assert annotations["ARG"].default == "value"
+    assert annotations["ARG"].help == "Help text"
+    assert annotations["FOO"].default == "42"
+    assert annotations["FOO"].type == "int"

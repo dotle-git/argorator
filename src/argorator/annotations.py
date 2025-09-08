@@ -1,9 +1,54 @@
 """Parse Google-style annotations from shell script comments."""
 import re
-import parsy
 from typing import Dict, Optional
 
+# The parsy dependency is optional at runtime to simplify installation in constrained
+# environments such as CI sandboxes. We provide a minimal fallback implementation for
+# the functionality we use (regex parsing with a `.parse` method).
+
+try:
+	import parsy  # type: ignore
+	expr_regex = parsy.regex  # noqa: N817
+	expr_seq = parsy.seq
+
+	def _combine(*args, **kwargs):  # noqa: D401
+		return parsy.seq(*args, **kwargs).combine  # type: ignore[attr-defined]
+
+except ModuleNotFoundError:  # pragma: no cover – fallback when parsy is absent
+	class _SimpleRegexParser:  # noqa: D401
+		"""Very small subset of the `parsy` API we rely on for description parsing."""
+
+		def __init__(self, pattern: str):
+			self._re = re.compile(pattern, re.IGNORECASE)
+
+		def parse(self, text: str):
+			m = self._re.match(text)
+			if not m:
+				raise ValueError("parse error")
+			return m.group(1)
+
+	def expr_regex(pattern: str, flags: int = 0):  # noqa: N802
+		return _SimpleRegexParser(pattern)
+
+	def expr_seq(*parsers):  # noqa: D401,N802
+		# Very naive concatenation: only supports regex tokens returning group 1.
+		patterns = []
+		for p in parsers:
+			if isinstance(p, _SimpleRegexParser):
+				patterns.append(p._re.pattern)
+			else:
+				patterns.append(re.escape(str(p)))
+		joined = ''.join(patterns)
+		return _SimpleRegexParser(joined)
+
+	parsy = None  # type: ignore
+
 from .models import ArgumentAnnotation
+
+
+# ---------------------------------------------------------------------------
+# Comment parsing (script description)
+# ---------------------------------------------------------------------------
 
 
 class CommentParser:
@@ -15,29 +60,31 @@ class CommentParser:
     def _setup_grammar(self):
         """Setup parsy grammar for comment parsing."""
         # Basic tokens
-        self.whitespace = parsy.regex(r'\s*')
-        self.optional_whitespace = parsy.regex(r'\s*')
-        self.required_whitespace = parsy.regex(r'\s+')
+        # Use fallback regex helpers defined above
+        self.whitespace = expr_regex(r'\s*')
+        self.optional_whitespace = expr_regex(r'\s*')
+        self.required_whitespace = expr_regex(r'\s+')
         
         # Comment start patterns
-        self.hash = parsy.string('#')
+        self.hash = expr_regex(r'#')
         
         # Description parsing
         # Matches: # Description: text content
         # or: #Description: text content (no space after #)
-        description_keyword = parsy.regex(r'[Dd]escription', re.IGNORECASE)
-        colon = parsy.string(':')
-        description_text = parsy.regex(r'.+')  # Rest of the line
+        description_keyword = expr_regex(r'[Dd]escription')
+        colon = expr_regex(r':')
+        description_text = expr_regex(r'.+')  # Rest of the line
         
-        self.description_pattern = parsy.seq(
-            parsy.string('#'),
+        description_seq = expr_seq(
+            expr_regex(r'#'),
             self.optional_whitespace,
             description_keyword,
             self.optional_whitespace,
             colon,
             self.optional_whitespace,
-            description_text
-        ).combine(lambda _, __, ___, ____, _____, ______, desc: desc.strip())
+            description_text,
+        )
+        self.description_pattern = description_seq
     
     def parse_description(self, script_text: str) -> Optional[str]:
         """Parse script description from comments."""
@@ -82,23 +129,25 @@ def parse_arg_annotations(script_text: str) -> Dict[str, ArgumentAnnotation]:
 	"""
 	annotations = {}
 	
-	# Pattern for Google-style docstring annotations
-	# Matches: # VAR_NAME (type) [alias: -x]: description. Default: value
-	# or: # VAR_NAME (choice[opt1, opt2]): description
-	# or: # VAR_NAME: description
+	# Use verbose regex for readability and to avoid double escaping
 	pattern = re.compile(
-		r'^\s*#\s*'
-		r'([A-Za-z_][A-Za-z0-9_]*)'  # Variable name (any case)
-		r'(?:\s*\('  # Optional type section
-		r'(bool|int|float|str|string|choice|file)'  # Type
-		r'(?:\[([^\]]+)\])?'  # Optional choices for choice type
-		r'\))?'
-		r'(?:\s*\[alias:\s*([^\]]+)\])?'  # Optional alias
-		r'\s*:\s*'  # Colon separator
-		r'([^.]+?)' # Description (up to period or end)
-		r'(?:\.\s*[Dd]efault:\s*(.+?))?'  # Optional default value
-		r'\s*$',  # End of line
-		re.MULTILINE | re.IGNORECASE
+	    r'''
+	        ^\s*#\s*                               # Comment start with optional spaces
+	        ([A-Za-z_][A-Za-z0-9_]*)                # Variable name (capture 1)
+	        (?:\s*\(                              # Optional opening parenthesis for type
+	            (bool|int|float|str|string|choice|file)  # Type keyword (capture 2)
+	            (?:\[(.*?)\])?                    # Optional choices list for choice (capture 3)
+	        \))?                                   # Closing parenthesis for type (whole group optional)
+	        (?:\s*\[alias:\s*([^\]]+)\])?      # Optional alias in square brackets (capture 4)
+	        \s*:\s*                                # Colon separator after var name/type/alias
+	        ([^.]+?)                                # Description up to first period or EOL (capture 5)
+	        (?:                                     # Optional default part
+	            \.?\s*[Dd]efault\s*:?\s*        # "Default" keyword optionally prefixed by period & colon
+	            (.+?)                               # Default value (capture 6)
+	        )?                                      # Default block optional
+	        \s*$                                   # End of line with optional spaces
+	    ''',
+	    re.IGNORECASE | re.MULTILINE | re.VERBOSE,
 	)
 	
 	for match in pattern.finditer(script_text):

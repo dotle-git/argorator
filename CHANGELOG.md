@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Fixed script descriptions not appearing in compile/run/export sub-command help output
+- Correct parsing of default values in Google-style argument comments when "Default" is not preceded by a period. Defaults such as `# ARG (str): Help text Default: value` are now properly detected.
 
 ## [0.5.1] - 2025-01-28
 
