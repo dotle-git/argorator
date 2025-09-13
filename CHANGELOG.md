@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Improved `$@` (varargs) argument parsing reliability and error handling
+  - Fixed edge cases where `$@` usage with undefined variables could cause unclear error messages
+  - Enhanced test coverage for various `$@` usage scenarios including scripts with only varargs, mixed positional/varargs, and varargs with undefined variables
+
 ## [0.5.3] - 2025-01-28
 
 ### Fixed

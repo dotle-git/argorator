@@ -252,3 +252,63 @@ echo "Hello $USER_NAME on port $PORT_NUMBER"
 	# Run the script - should work with the annotation defaults
 	rc = cli.main([str(script)])
 	assert rc == 0
+
+
+def test_varargs_only_script(tmp_path: Path):
+	"""Test script that only uses $@ without numbered positionals."""
+	script_content = """#!/bin/bash
+echo "All arguments:"
+for arg in "$@"; do
+    echo "  - $arg"
+done
+"""
+	script = write_temp_script(tmp_path, script_content)
+	
+	# Test with no arguments
+	rc = cli.main([str(script)])
+	assert rc == 0
+	
+	# Test with multiple arguments
+	rc = cli.main([str(script), "arg1", "arg2", "arg3"])
+	assert rc == 0
+
+
+def test_varargs_with_numbered_positionals(tmp_path: Path):
+	"""Test script that uses both numbered positionals and $@."""
+	script_content = """#!/bin/bash
+echo "First: $1"
+echo "Second: $2"
+echo "All arguments:"
+for arg in "$@"; do
+    echo "  - $arg"
+done
+"""
+	script = write_temp_script(tmp_path, script_content)
+	
+	# Test with exact number of positionals
+	rc = cli.main([str(script), "first", "second"])
+	assert rc == 0
+	
+	# Test with extra arguments (should go to $@)
+	rc = cli.main([str(script), "first", "second", "extra1", "extra2"])
+	assert rc == 0
+
+
+def test_varargs_with_undefined_variables(tmp_path: Path):
+	"""Test script that uses $@ with undefined variables."""
+	script_content = """#!/bin/bash
+echo "Name: $NAME"
+echo "All arguments:"
+for arg in "$@"; do
+    echo "  - $arg"
+done
+"""
+	script = write_temp_script(tmp_path, script_content)
+	
+	# Test with required variable and no extra args
+	rc = cli.main([str(script), "--name", "Alice"])
+	assert rc == 0
+	
+	# Test with required variable and extra args
+	rc = cli.main([str(script), "--name", "Alice", "arg1", "arg2", "arg3"])
+	assert rc == 0
