@@ -110,6 +110,45 @@ Hi Alice!
 NICE TO MEET YOU!
 ```
 
+## Inspect Script Interfaces
+
+Use the `explain` command to get a machine-readable description of any script's interface:
+
+```bash
+argorator explain script.sh
+```
+
+Output:
+```json
+{
+  "description": "A friendly greeting script",
+  "arguments": [
+    {
+      "name": "NAME",
+      "type": "str",
+      "help": "Your name",
+      "default": null,
+      "required": true,
+      "alias": null,
+      "choices": null
+    },
+    {
+      "name": "AGE",
+      "type": "int", 
+      "help": "Your age",
+      "default": null,
+      "required": true,
+      "alias": null,
+      "choices": null
+    }
+  ],
+  "positionals": [],
+  "varargs": false
+}
+```
+
+Perfect for integrating with other tools, AI agents, or building documentation automatically.
+
 ## What Argorator Does
 
 ### Variables become options

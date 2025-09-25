@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-01-28
+
+### Added
+- **NEW FEATURE**: `explain` command for machine-readable script interface inspection
+  - `argorator explain <script>` outputs a JSON object detailing the complete command-line interface
+  - Includes all arguments with types, help text, default values, and requirements
+  - Shows positional arguments and varargs usage
+  - Supports all annotation types: str, int, float, bool, choice
+  - Displays argument aliases and choice constraints
+  - Intended for integration with other tools and AI agents
+  - Uses Pydantic models for structured, type-safe JSON output
+
 ## [0.5.3] - 2025-01-28
 
 ### Fixed

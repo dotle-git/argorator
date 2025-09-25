@@ -283,4 +283,8 @@ def build_top_level_parser(script_name: str = "argorator", script_description: O
     export_parser = subparsers.add_parser("export", help="Print export lines", description=script_description)
     export_parser.add_argument("script", help="Path to the shell script")
     
+    # explain
+    explain_parser = subparsers.add_parser("explain", help="Print script interface as JSON", description=script_description)
+    explain_parser.add_argument("script", help="Path to the shell script")
+    
     return parser

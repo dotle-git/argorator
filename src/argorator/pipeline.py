@@ -21,6 +21,7 @@ from .contexts import (
     create_transform_context, create_validate_context,
     create_compile_context, create_execute_context
 )
+from .models import ScriptInterface, ArgumentInfo, PositionalInfo
 from .execution import validate_script_path
 from .registry import pipeline_registry
 from .transformers import build_top_level_parser
@@ -60,7 +61,7 @@ class Pipeline:
         argv = list(argv) if argv is not None else sys.argv[1:]
         
         # If first token is a known subcommand, parse with subparsers; otherwise treat as implicit run
-        subcommands = {"run", "compile", "export"}
+        subcommands = {"run", "compile", "export", "explain"}
         if argv and argv[0] in subcommands:
             return self._parse_explicit_subcommand(argv)
         else:
@@ -238,6 +239,81 @@ class Pipeline:
             # For run command, output is handled by execution stage
             return ""
     
+    def _generate_explain_output(self, context: AnalysisContext) -> str:
+        """Generate JSON output for the explain command from analysis context."""
+        # Build arguments list
+        arguments = []
+        
+        # Add undefined variables (required arguments)
+        for name in sorted(context.undefined_vars.keys()):
+            annotation = context.annotations.get(name)
+            if annotation:
+                arg_info = ArgumentInfo(
+                    name=name,
+                    type=annotation.type,
+                    help=annotation.help,
+                    default=annotation.default,
+                    required=True,
+                    alias=annotation.alias,
+                    choices=annotation.choices
+                )
+            else:
+                arg_info = ArgumentInfo(
+                    name=name,
+                    type='str',
+                    help='',
+                    default=None,
+                    required=True,
+                    alias=None,
+                    choices=None
+                )
+            arguments.append(arg_info)
+        
+        # Add environment variables (optional arguments)
+        for name, env_value in context.env_vars.items():
+            annotation = context.annotations.get(name)
+            if annotation:
+                arg_info = ArgumentInfo(
+                    name=name,
+                    type=annotation.type,
+                    help=annotation.help,
+                    default=env_value,  # Environment value takes precedence
+                    required=False,
+                    alias=annotation.alias,
+                    choices=annotation.choices
+                )
+            else:
+                arg_info = ArgumentInfo(
+                    name=name,
+                    type='str',
+                    help='',
+                    default=env_value,
+                    required=False,
+                    alias=None,
+                    choices=None
+                )
+            arguments.append(arg_info)
+        
+        # Build positionals list
+        positionals = []
+        for index in sorted(context.positional_indices):
+            positional_info = PositionalInfo(
+                name=f"ARG{index}",
+                index=index
+            )
+            positionals.append(positional_info)
+        
+        # Create the script interface
+        script_interface = ScriptInterface(
+            description=context.script_metadata.description if context.script_metadata else None,
+            arguments=arguments,
+            positionals=positionals,
+            varargs=context.varargs
+        )
+        
+        # Return formatted JSON
+        return script_interface.model_dump_json(indent=2)
+    
     def run(self, command: PipelineCommand) -> int:
         """Run the complete pipeline with the given command.
         
@@ -251,6 +327,12 @@ class Pipeline:
             # Stage 1: Analyze script
             analysis = self.create_analysis_context(command)
             analysis = self.run_analysis_stage(analysis)
+            
+            # Handle explain command - generate JSON output from analysis
+            if command.command == "explain":
+                output = self._generate_explain_output(analysis)
+                print(output)
+                return 0
             
             # Stage 2: Build argument parser
             transform = self.run_transform_stage(analysis)
