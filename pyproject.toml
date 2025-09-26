@@ -20,6 +20,15 @@ dependencies = [
 	"parsy>=2.1",
 ]
 
+[project.optional-dependencies]
+dev = [
+	"pytest>=8.0",
+	"pytest-cov",
+	"black",
+	"flake8",
+	"mypy",
+]
+
 [project.scripts]
 argorator = "argorator.cli:main"
 

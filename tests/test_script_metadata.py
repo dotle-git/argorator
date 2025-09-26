@@ -73,7 +73,7 @@ def test_script_metadata_model():
     """Test ScriptMetadata model creation and validation."""
     metadata = ScriptMetadata(description="Test description")
     assert metadata.description == "Test description"
-    
+
     # Test with None description
     metadata_none = ScriptMetadata()
     assert metadata_none.description is None
@@ -86,9 +86,9 @@ def test_analyze_script_metadata_with_description():
 echo "Hello World"
 """
     context = AnalysisContext(script_text=script_text)
-    
+
     analyze_script_metadata(context)
-    
+
     assert context.script_metadata is not None
     assert context.script_metadata.description == "My awesome script"
 
@@ -100,9 +100,9 @@ def test_analyze_script_metadata_no_description():
 echo "Hello World"
 """
     context = AnalysisContext(script_text=script_text)
-    
+
     analyze_script_metadata(context)
-    
+
     assert context.script_metadata is None
 
 
@@ -110,7 +110,7 @@ def test_get_script_name_strips_extension():
     """Test that get_script_name strips file extensions."""
     script_path = Path("/path/to/my_script.sh")
     context = AnalysisContext(script_text="", script_path=script_path)
-    
+
     assert context.get_script_name() == "my_script"
 
 
@@ -118,7 +118,7 @@ def test_get_script_name_no_extension():
     """Test get_script_name with files that have no extension."""
     script_path = Path("/path/to/my_script")
     context = AnalysisContext(script_text="", script_path=script_path)
-    
+
     assert context.get_script_name() == "my_script"
 
 
@@ -126,7 +126,7 @@ def test_get_script_name_multiple_extensions():
     """Test get_script_name with multiple extensions."""
     script_path = Path("/path/to/my_script.test.sh")
     context = AnalysisContext(script_text="", script_path=script_path)
-    
+
     # .stem removes only the last extension
     assert context.get_script_name() == "my_script.test"
 
@@ -134,7 +134,7 @@ def test_get_script_name_multiple_extensions():
 def test_get_script_name_none_path():
     """Test get_script_name when script_path is None."""
     context = AnalysisContext(script_text="")
-    
+
     assert context.get_script_name() is None
 
 
@@ -145,25 +145,27 @@ def test_parser_creation_with_description(tmp_path):
 # NAME: User name
 echo "Hello $NAME"
 """
-    
+
     script_path = tmp_path / "test_script.sh"
     script_path.write_text(script_content)
-    
+
     # Create a pipeline and run the analysis and transform stages
     pipeline = Pipeline()
     command = pipeline.parse_command_line(["run", str(script_path)])
-    
+
     # Run analysis stage
     analysis = pipeline.create_analysis_context(command)
     analysis = pipeline.run_analysis_stage(analysis)
-    
-    # Run transform stage  
+
+    # Run transform stage
     transform = pipeline.run_transform_stage(analysis)
-    
+
     # Check that the parser has the correct program name and description
     assert transform.argument_parser is not None
     assert transform.argument_parser.prog == "test_script"
-    assert transform.argument_parser.description == "This is my test script for validation"
+    assert (
+        transform.argument_parser.description == "This is my test script for validation"
+    )
 
 
 def test_parser_creation_without_description(tmp_path):
@@ -172,21 +174,21 @@ def test_parser_creation_without_description(tmp_path):
 # NAME: User name
 echo "Hello $NAME"
 """
-    
+
     script_path = tmp_path / "test_script.sh"
     script_path.write_text(script_content)
-    
+
     # Create a pipeline and run the analysis and transform stages
     pipeline = Pipeline()
     command = pipeline.parse_command_line(["run", str(script_path)])
-    
+
     # Run analysis stage
     analysis = pipeline.create_analysis_context(command)
     analysis = pipeline.run_analysis_stage(analysis)
-    
-    # Run transform stage  
+
+    # Run transform stage
     transform = pipeline.run_transform_stage(analysis)
-    
+
     # Check that the parser has the correct program name but no description
     assert transform.argument_parser is not None
     assert transform.argument_parser.prog == "test_script"
@@ -200,22 +202,22 @@ def test_help_output_includes_description(tmp_path):
 # NAME: The user's name
 echo "Hello $NAME"
 """
-    
+
     script_path = tmp_path / "greet.sh"
     script_path.write_text(script_content)
-    
+
     # Create a pipeline and try to parse --help
     pipeline = Pipeline()
     command = pipeline.parse_command_line(["run", str(script_path)])
-    
+
     # Run analysis and transform stages
     analysis = pipeline.create_analysis_context(command)
     analysis = pipeline.run_analysis_stage(analysis)
     transform = pipeline.run_transform_stage(analysis)
-    
+
     # Get help text
     help_text = transform.argument_parser.format_help()
-    
+
     # Check that description and program name are in help text
     assert "greet" in help_text  # program name without extension
     assert "A helpful script that greets users" in help_text  # description
@@ -227,22 +229,22 @@ def test_help_output_without_description(tmp_path):
 # NAME: The user's name
 echo "Hello $NAME"
 """
-    
+
     script_path = tmp_path / "greet.sh"
     script_path.write_text(script_content)
-    
+
     # Create a pipeline and try to parse --help
     pipeline = Pipeline()
     command = pipeline.parse_command_line(["run", str(script_path)])
-    
+
     # Run analysis and transform stages
     analysis = pipeline.create_analysis_context(command)
     analysis = pipeline.run_analysis_stage(analysis)
     transform = pipeline.run_transform_stage(analysis)
-    
+
     # Get help text
     help_text = transform.argument_parser.format_help()
-    
+
     # Check that program name is in help text but no description
     assert "greet" in help_text  # program name without extension
     # Should not contain any mention of description

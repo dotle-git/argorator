@@ -378,13 +378,73 @@ argorator script.sh --name John --age 25
 - Linux, macOS, or Windows with WSL
 - Bash shell
 
+## Development
+
+### Quick Setup
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd argorator
+
+# Run the automatic setup script
+./setup.sh
+```
+
+### Manual Setup
+
+```bash
+# Install in development mode with all dependencies
+pip install -e .[dev]
+
+# Or install step by step
+pip install -e .          # Install the package
+pip install -e .[dev]     # Install development dependencies
+```
+
+### Development Commands
+
+```bash
+# Run tests
+make test
+# or
+PYTHONPATH=/workspace/src python -m pytest tests/
+
+# Run tests with coverage
+make test-coverage
+
+# Format code
+make format
+
+# Lint code
+make lint
+
+# Type checking
+make type-check
+```
+
+### Alternative Setup Methods
+
+**Using requirements files:**
+```bash
+pip install -r requirements.txt        # Production dependencies
+pip install -r requirements-dev.txt    # All dependencies
+```
+
+**Using Python setup script:**
+```bash
+python setup_dev.py
+```
+
 ## Contributing
 
 Want to help improve Argorator?
 
 1. Fork this repository
-2. Make your changes
-3. Submit a pull request
+2. Set up the development environment (see Development section above)
+3. Make your changes
+4. Run the test suite: `make test`
+5. Submit a pull request
 
 We welcome all contributions!
 
