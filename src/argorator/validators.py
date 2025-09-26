@@ -9,6 +9,7 @@ arguments after argparse processing but before compilation. This allows for:
 
 Currently empty - validation steps will be added in future releases.
 """
+
 from .contexts import ValidateContext
 from .registry import validator
 
@@ -18,7 +19,7 @@ from .registry import validator
 #     """Example validation step."""
 #     if not context.parsed_args:
 #         return
-#     
+#
 #     # Add validation logic here
 #     pass
 

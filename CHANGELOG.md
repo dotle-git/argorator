@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Automatic dependency installation** for development environment setup
+  - Added development dependencies to `pyproject.toml` including pytest, black, flake8, mypy, and pytest-cov
+  - Created `setup.sh` script for one-command development environment setup
+  - Created `setup_dev.py` Python script for automated dependency installation and verification
+  - Added `Makefile` with convenient development commands (test, format, lint, type-check, etc.)
+  - Created `requirements.txt` and `requirements-dev.txt` for pip-based installation
+  - Updated README.md with comprehensive development setup instructions
+  - All setup methods handle externally managed Python environments with `--break-system-packages` flag
+  - Automatic verification includes package imports, pytest installation, and test suite execution
+
 ## [0.6.0] - 2025-01-28
 
 ### Added

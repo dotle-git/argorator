@@ -9,6 +9,7 @@ This module contains analyzer functions that parse shell scripts to extract:
 All analyzers are registered using the decorator pattern and operate on the
 PipelineContext object.
 """
+
 import os
 import re
 from typing import Dict, Optional, Set, Tuple
@@ -56,43 +57,41 @@ def parse_defined_variables(script_text: str) -> Set[str]:
     """
     assignment_pattern = re.compile(
         r"^\s*(?:export\s+|local\s+|declare(?:\s+-[a-zA-Z]+)?\s+|readonly\s+)?"
-        r"([A-Za-z_][A-Za-z0-9_]*)\s*=", 
-        re.MULTILINE
+        r"([A-Za-z_][A-Za-z0-9_]*)\s*=",
+        re.MULTILINE,
     )
     return set(assignment_pattern.findall(script_text))
 
 
 def parse_loop_variables(script_text: str) -> Set[str]:
     """Extract variable names that are defined in loop constructs.
-    
+
     Matches loop variables in:
     - for loops: for VAR in ...; do
     - while loops with read: while IFS= read -r VAR; do
     - C-style for loops: for ((VAR=...; VAR<...; VAR++)); do
     """
     loop_vars = set()
-    
+
     # for VAR in ...; do (handle both quoted and unquoted variables)
     for_pattern = re.compile(
-        r"^\s*for\s+(?:[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?)\s+in\s+",
-        re.MULTILINE
+        r"^\s*for\s+(?:[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?)\s+in\s+", re.MULTILINE
     )
     loop_vars.update(for_pattern.findall(script_text))
-    
+
     # while IFS= read -r VAR; do (handle both quoted and unquoted variables)
     while_read_pattern = re.compile(
         r"^\s*while\s+.*read\s+-r\s+(?:[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?)\s*;?\s*do",
-        re.MULTILINE
+        re.MULTILINE,
     )
     loop_vars.update(while_read_pattern.findall(script_text))
-    
+
     # for ((VAR=...; VAR<...; VAR++)); do
     c_style_for_pattern = re.compile(
-        r"^\s*for\s*\(\s*\(([A-Za-z_][A-Za-z0-9_]*)\s*=",
-        re.MULTILINE
+        r"^\s*for\s*\(\s*\(([A-Za-z_][A-Za-z0-9_]*)\s*=", re.MULTILINE
     )
     loop_vars.update(c_style_for_pattern.findall(script_text))
-    
+
     return loop_vars
 
 
@@ -109,47 +108,49 @@ def parse_variable_usages(script_text: str) -> Set[str]:
     return {name for name in candidates if name and name not in SPECIAL_VARS}
 
 
-def parse_positional_usages(script_text: str, exclude_function_params: Optional[Set[str]] = None) -> Tuple[Set[int], bool]:
+def parse_positional_usages(
+    script_text: str, exclude_function_params: Optional[Set[str]] = None
+) -> Tuple[Set[int], bool]:
     """Extract positional parameter indices and varargs usage from script.
-    
+
     Args:
         script_text: The script content
         exclude_function_params: Set of function parameter indices to exclude (e.g., {'1', '2'})
-    
+
     Returns:
         Tuple of (positional_indices, varargs_present)
     """
     digit_pattern = re.compile(r"\$([1-9][0-9]*)")
     varargs_pattern = re.compile(r"\$(?:@|\*)")
-    
+
     indices = {int(m) for m in digit_pattern.findall(script_text)}
     varargs = bool(varargs_pattern.search(script_text))
-    
+
     # Exclude function parameters that are used with iterator macros
     if exclude_function_params:
         indices = {idx for idx in indices if str(idx) not in exclude_function_params}
-    
+
     return indices, varargs
 
 
 def _extract_function_parameters(script_text: str, function_target) -> Set[str]:
     """Extract function parameter variables used within a function that has an iteration macro.
-    
+
     Args:
         script_text: The full script content
         function_target: The MacroTarget representing the function
-        
+
     Returns:
         Set of function parameter variable names (e.g., {'1', '2', '3'})
     """
-    lines = script_text.split('\n')
-    function_lines = lines[function_target.start_line:function_target.end_line + 1]
-    function_content = '\n'.join(function_lines)
-    
+    lines = script_text.split("\n")
+    function_lines = lines[function_target.start_line : function_target.end_line + 1]
+    function_content = "\n".join(function_lines)
+
     # Find all positional parameter usages within the function
     digit_pattern = re.compile(r"\$([1-9][0-9]*)")
     param_indices = {m for m in digit_pattern.findall(function_content)}
-    
+
     return param_indices
 
 
@@ -177,61 +178,75 @@ def identify_macro_iterator_variables(context: AnalysisContext) -> None:
     try:
         from .macros.parser import macro_parser
         from .macros.processor import macro_processor
-        
+
         # Extract variable types from annotations and pass to macro processor
         variable_types = {}
-        
+
         # Get types from argument annotations (if available)
         if context.annotations:
             for var_name, annotation in context.annotations.items():
                 variable_types[var_name] = annotation.type
-        
+
         # Set variable types in macro processor
         macro_processor.set_variable_types(variable_types)
-        
+
         # Find all iteration macro comments
         macro_comments = macro_parser.find_macro_comments(context.script_text)
         iterator_vars = set()
         function_param_vars = set()
-        
+
         for comment in macro_comments:
-            if comment.macro_type == 'iteration':
+            if comment.macro_type == "iteration":
                 try:
                     # Parse the iteration macro to extract iterator variable
                     # We need a dummy target to parse the macro
-                    target = macro_parser.find_target_for_macro(context.script_text, comment.line_number)
+                    target = macro_parser.find_target_for_macro(
+                        context.script_text, comment.line_number
+                    )
                     if target:
-                        iteration_macro = macro_parser.parse_iteration_macro(comment, target)
+                        iteration_macro = macro_parser.parse_iteration_macro(
+                            comment, target
+                        )
                         iterator_vars.add(iteration_macro.iterator_var)
-                        
+
                         # If this macro targets a function, identify function parameters used within that function
-                        if target.target_type == 'function':
-                            function_params = _extract_function_parameters(context.script_text, target)
+                        if target.target_type == "function":
+                            function_params = _extract_function_parameters(
+                                context.script_text, target
+                            )
                             function_param_vars.update(function_params)
-                            
+
                 except Exception:
                     # If parsing fails, continue with other macros
                     pass
-        
+
         # Store iterator variables and function parameter variables in temp_data for use in next analyzer
-        context.temp_data['macro_iterator_vars'] = iterator_vars
-        context.temp_data['macro_function_param_vars'] = function_param_vars
-        
+        context.temp_data["macro_iterator_vars"] = iterator_vars
+        context.temp_data["macro_function_param_vars"] = function_param_vars
+
     except ImportError:
         # If macro modules aren't available, skip this step
-        context.temp_data['macro_iterator_vars'] = set()
-        context.temp_data['macro_function_param_vars'] = set()
+        context.temp_data["macro_iterator_vars"] = set()
+        context.temp_data["macro_function_param_vars"] = set()
 
 
 @analyzer(order=46)
 def analyze_undefined_variables(context: AnalysisContext) -> None:
     """Identify variables that are used but not defined in the script."""
     # Get iterator variables and function parameter variables identified by macro analysis
-    macro_iterator_vars = context.temp_data.get('macro_iterator_vars', set())
-    macro_function_param_vars = context.temp_data.get('macro_function_param_vars', set())
-    
+    macro_iterator_vars = context.temp_data.get("macro_iterator_vars", set())
+    macro_function_param_vars = context.temp_data.get(
+        "macro_function_param_vars", set()
+    )
+
     # Exclude iterator variables, function parameter variables, and loop variables from undefined variables
-    undefined_vars = context.all_used_vars - context.defined_vars - macro_iterator_vars - macro_function_param_vars - context.loop_vars
+    undefined_vars = (
+        context.all_used_vars
+        - context.defined_vars
+        - macro_iterator_vars
+        - macro_function_param_vars
+        - context.loop_vars
+    )
     context.undefined_vars = {name: None for name in sorted(undefined_vars)}
 
 
@@ -240,13 +255,13 @@ def analyze_environment_variables(context: AnalysisContext) -> None:
     """Separate undefined variables into those with environment defaults and truly undefined."""
     env_vars: Dict[str, str] = {}
     remaining_undefined: Dict[str, Optional[str]] = {}
-    
+
     for name in context.undefined_vars.keys():
         if name in os.environ:
             env_vars[name] = os.environ[name]
         else:
             remaining_undefined[name] = None
-    
+
     context.env_vars = env_vars
     context.undefined_vars = remaining_undefined
 
@@ -255,9 +270,13 @@ def analyze_environment_variables(context: AnalysisContext) -> None:
 def analyze_positional_parameters(context: AnalysisContext) -> None:
     """Detect positional parameter usage and varargs references in the script."""
     # Get function parameter variables that are used with iterator macros
-    macro_function_param_vars = context.temp_data.get('macro_function_param_vars', set())
-    
-    indices, varargs = parse_positional_usages(context.script_text, exclude_function_params=macro_function_param_vars)
+    macro_function_param_vars = context.temp_data.get(
+        "macro_function_param_vars", set()
+    )
+
+    indices, varargs = parse_positional_usages(
+        context.script_text, exclude_function_params=macro_function_param_vars
+    )
     context.positional_indices = indices
     context.varargs = varargs
 
